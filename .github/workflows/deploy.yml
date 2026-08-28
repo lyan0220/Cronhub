@@ -3,6 +3,8 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"   # 纯文档变更不触发部署
   workflow_dispatch:
 
 env:

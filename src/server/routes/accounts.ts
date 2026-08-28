@@ -76,6 +76,7 @@ accountRoutes.put("/:id", async (c) => {
   const body = await c.req.json<{ name?: unknown; token?: unknown; verify?: unknown }>().catch(() => ({}) as never);
 
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : account.name;
+  if (name.length > 100) return c.json({ ok: false, error: "备注名必填（≤100 字）" }, 400);
   const newToken = typeof body.token === "string" && body.token.trim() ? body.token.trim() : null;
   if (newToken && newToken.length < 20) return c.json({ ok: false, error: "token 长度太短" }, 400);
 
