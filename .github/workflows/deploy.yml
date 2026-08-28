@@ -5,55 +5,48 @@ on:
     branches: [main, dev]
   workflow_dispatch:
 
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - run: npm run build
+      - name: Build
+        run: npm run build
 
-      - name: 部署 Worker（首次运行自动创建 D1 数据库）
+      - name: Deploy Worker
         run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: 初始化数据库表（幂等）
+      - name: Initialize database schema
         run: npx wrangler d1 execute cronjob --remote --file=src/schema.sql
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: 同步密钥
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - name: Sync secrets
         run: |
-          # pipefail：管道退出码传导 wrangler 的失败，防止 secret list 失败时
-          # EXISTING 误为空 → 重新生成 TOKEN_ENC_KEY 覆盖旧值（PAT 将无法解密）
+          # pipefail：secret list 失败时中止，防止 EXISTING 误为空导致 TOKEN_ENC_KEY 被覆盖
           set -eo pipefail
           EXISTING=$(npx wrangler secret list | jq -r '.[].name')
 
-          # TOKEN_ENC_KEY：首次生成，之后绝不覆盖（换钥匙会导致已存 PAT 无法解密）
           if ! echo "$EXISTING" | grep -qx 'TOKEN_ENC_KEY'; then
-            echo "首次部署：自动生成 TOKEN_ENC_KEY"
             openssl rand -hex 32 | npx wrangler secret put TOKEN_ENC_KEY
-          else
-            echo "TOKEN_ENC_KEY 已存在，跳过"
           fi
 
-          # ADMIN_PASSWORD：repo secret 有值则同步（改密码 = 改 repo secret 再 push）
           if [ -n "$ADMIN_PASSWORD" ]; then
             printf '%s' "$ADMIN_PASSWORD" | npx wrangler secret put ADMIN_PASSWORD
           else
-            echo "::warning::未设置 ADMIN_PASSWORD repo secret，管理页将无法登录"
+            echo "::warning::ADMIN_PASSWORD secret is not set"
           fi
