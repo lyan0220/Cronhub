@@ -26,8 +26,8 @@ const devHead = shOut("git rev-parse --short HEAD");
 sh("git checkout main");
 sh("git checkout dev -- .");
 
-// 3. 剔除非生产文件（仅在文件存在时执行）
-sh(`git rm -r -q --ignore-unmatch ${NON_PROD.join(" ")}`);
+// 3. 剔除非生产文件（-f：checkout dev -- . 会把这些文件带入暂存区，需强制删除）
+sh(`git rm -r -f -q --ignore-unmatch ${NON_PROD.join(" ")}`);
 
 // 4. 提交（有变化才提交）
 if (shOut("git status --porcelain")) {
