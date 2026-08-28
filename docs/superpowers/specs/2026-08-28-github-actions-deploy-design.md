@@ -14,7 +14,7 @@
 | 部署渠道 | GitHub Actions（`.github/workflows/deploy.yml`） |
 | 首次部署引导 | 全部交给 CI，无本地 setup 脚本 |
 | 触发分支 | push 到 `main` 和 `dev` 均部署；另支持 workflow_dispatch 手动触发 |
-| database_id | 仓库配置保持占位符，CI 每次动态注入，**代码文件永不改动** |
+| database_id | **直接从 `wrangler.jsonc` 删除**（调研验证：wrangler 4.x 配置校验中 database_id 为 optional；deploy 时 D1Handler 按 `database_name` 自动连接已有库、不存在则自动创建）。无 CI 注入逻辑，代码文件永久零改动 |
 | TOKEN_ENC_KEY | CI 检测不存在时自动生成随机 32 字节写入；**已存在绝不覆盖**（换钥匙导致已存 PAT 无法解密） |
 | ADMIN_PASSWORD | 由用户放在 GitHub repo secret；repo secret 有值则每次覆盖同步（改密码 = 改 repo secret 再 push） |
 
@@ -22,23 +22,22 @@
 
 ```
 push 到 main/dev（或手动触发）
-  ① 检查/创建 D1：
-     wrangler d1 list --json 按名称查 "cronjob"
-     不存在 → wrangler d1 create cronjob
-     提取 uuid
-  ② 注入 database_id 到 wrangler.jsonc（CI 临时工作区，不提交）
-  ③ npm ci → npm run build → wrangler deploy（含 cron 触发器）
-  ④ wrangler d1 execute cronjob --remote --file=src/schema.sql
-     （IF NOT EXISTS，幂等，可重复执行）
-  ⑤ 密钥同步：
-     a. wrangler secret list 查询
-        TOKEN_ENC_KEY 不存在 → openssl rand -hex 32 生成并 put
-        已存在 → 跳过（绝不覆盖）
-     b. secrets.ADMIN_PASSWORD 非空 → echo | wrangler secret put ADMIN_PASSWORD
+  ① npm ci → npm run build
+  ② npx wrangler deploy
+     D1 绑定按 database_name 自动解析：
+     库 "cronjob" 已存在 → 自动连接；不存在 → 自动创建
+     （同时部署 cron 触发器与静态资源）
+  ③ npx wrangler d1 execute cronjob --remote --file=src/schema.sql
+     （IF NOT EXISTS，幂等，可重复执行；按名称解析）
+  ④ 密钥同步（wrangler secret list 默认输出 JSON 数组）：
+     a. TOKEN_ENC_KEY 不存在 → openssl rand -hex 32 生成并写入
+        已存在 → 跳过（绝不覆盖：换钥匙导致已存 PAT 无法解密）
+     b. secrets.ADMIN_PASSWORD 非空 → 写入（改密码 = 改 repo secret 再 push）
         为空 → 跳过并在日志中提醒
 ```
 
-约束：`wrangler secret put` 要求 Worker 已存在，故 ⑤ 在 ③ 之后执行。
+顺序约束：④ 必须在 ② 之后（`wrangler secret put/list` 要求 Worker 已存在）。
+已用本地 wrangler 4.127（与 npm latest 一致）验证：省略 database_id 的配置通过 `deploy --dry-run` 校验与打包。
 
 ## 4. 用户一次性配置（GitHub repo secrets，3 个）
 
@@ -50,9 +49,9 @@ push 到 main/dev（或手动触发）
 
 ## 5. 兼容性
 
-- 本地开发不受影响：`npm run dev` 使用本地 D1（`.wrangler/state`），不读真实 database_id
-- 手动本地部署（`npm run deploy`）依然可用，README 改为以 CI 为推荐方式
-- `wrangler.jsonc` 占位 ID 保留；本地 `db:init`/`db:local` 脚本不变
+- 本地开发不受影响：`npm run dev` 使用本地 D1（`.wrangler/state`），按 `database_name` 解析，不需要真实 database_id
+- 手动本地部署（`npm run deploy`）同样受益：无需配置任何 ID，首次运行自动建库
+- `wrangler.jsonc` 删除 `database_id` 后无占位符；本地 `db:init`/`db:local` 脚本不变（均按名称操作）
 
 ## 6. 交付物
 
