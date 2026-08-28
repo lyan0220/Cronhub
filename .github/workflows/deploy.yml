@@ -39,7 +39,7 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           set -e
-          EXISTING=$(npx wrangler secret list | jq -r '.[].name' || true)
+          EXISTING=$(npx wrangler secret list | jq -r '.[].name')
 
           # TOKEN_ENC_KEY：首次生成，之后绝不覆盖（换钥匙会导致已存 PAT 无法解密）
           if ! echo "$EXISTING" | grep -qx 'TOKEN_ENC_KEY'; then
