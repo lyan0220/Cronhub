@@ -225,7 +225,7 @@ export default function Jobs() {
       {form && (
         <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onClick={() => setForm(null)}>
           <form onSubmit={submit} onClick={e => e.stopPropagation()}
-            className="h-full w-[480px] max-w-full overflow-y-auto bg-white p-6 dark:bg-neutral-900">
+            className="h-full w-120 max-w-full overflow-y-auto bg-white p-6 dark:bg-neutral-900">
             <h2 className="mb-4 text-lg font-bold">{form.id ? "编辑任务" : "新建任务"}</h2>
 
             <label className={labelCls}>任务名</label>
