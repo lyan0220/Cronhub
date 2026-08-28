@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import RequireAuth from "./components/RequireAuth";
 import { ToastProvider } from "./components/Toast";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -12,7 +13,7 @@ export default function App() {
     <ToastProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route element={<Layout />}>
+        <Route element={<RequireAuth><Layout /></RequireAuth>}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/accounts" element={<Accounts />} />
