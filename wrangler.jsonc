@@ -5,7 +5,10 @@
   "triggers": { "crons": ["*/5 * * * *"] },
   "assets": {
     "directory": "./dist/client",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    // 显式声明绑定名：生产环境会自动注入 ASSETS，
+    // 但本地 wrangler dev 只有显式声明才会给 Worker 注入该绑定
+    "binding": "ASSETS"
   },
   "d1_databases": [
     {
