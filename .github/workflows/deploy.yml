@@ -33,7 +33,7 @@ jobs:
         run: npx wrangler deploy
 
       - name: Initialize database schema
-        run: npx wrangler d1 execute cronjob --remote --file=src/schema.sql
+        run: npx wrangler d1 execute cronjob_db --remote --file=src/schema.sql
 
       - name: Sync secrets
         run: |

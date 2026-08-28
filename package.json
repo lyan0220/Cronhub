@@ -8,8 +8,8 @@
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "db:local": "wrangler d1 execute cronjob --local --file=src/schema.sql",
-    "db:init": "wrangler d1 execute cronjob --remote --file=src/schema.sql"
+    "db:local": "wrangler d1 execute cronjob_db --local --file=src/schema.sql",
+    "db:init": "wrangler d1 execute cronjob_db --remote --file=src/schema.sql"
   },
   "dependencies": {
     "hono": "^4.6.0",
