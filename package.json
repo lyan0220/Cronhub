@@ -9,7 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:local": "wrangler d1 execute cronjob_db --local --file=src/schema.sql",
-    "db:init": "wrangler d1 execute cronjob_db --remote --file=src/schema.sql"
+    "db:init": "wrangler d1 execute cronjob_db --remote --file=src/schema.sql",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "hono": "^4.6.0",
