@@ -1,0 +1,2 @@
+ADMIN_PASSWORD=change-me
+TOKEN_ENC_KEY=openssl-rand-hex-32-输出粘贴到这里
