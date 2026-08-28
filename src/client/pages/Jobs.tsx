@@ -136,7 +136,9 @@ export default function Jobs() {
     e.preventDefault();
     if (!form) return;
     setBusy(true);
-    const body = { ...form };
+    // 表单不含 enabled，而后端缺省会置为 1；编辑时必须回传原有启用状态，否则停用的任务会被静默重新启用。
+    const editing = form.id ? list.find(j => j.id === form.id) : undefined;
+    const body = { ...form, enabled: editing ? editing.enabled : 1 };
     try {
       if (form.id) await put(`/api/jobs/${form.id}`, body);
       else await post("/api/jobs", body);
