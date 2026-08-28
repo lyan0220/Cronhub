@@ -6,8 +6,8 @@ import { execSync } from "node:child_process";
 const sh = (cmd) => execSync(cmd, { stdio: ["ignore", "pipe", "inherit"] });
 const shOut = (cmd) => execSync(cmd, { encoding: "utf8" }).trim();
 
-// main 分支不保留的开发文件
-const NON_PROD = ["test", "docs", ".dev.vars.example", "vitest.config.ts"];
+// main 分支不保留的开发文件（含本脚本自身）
+const NON_PROD = ["test", "docs", ".dev.vars.example", "vitest.config.ts", "scripts"];
 
 // 1. 前置检查：必须在 dev 分支且工作区干净
 const branch = shOut("git branch --show-current");
