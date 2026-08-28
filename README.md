@@ -25,9 +25,23 @@ curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"   # 返回 {"ou
 
 > 端点说明：wrangler 4.x 使用 `/cdn-cgi/local/scheduled`；旧版 wrangler（≤3.x）使用 `curl "http://localhost:8787/__scheduled?cron=*"`。
 
+## 分支模型与发布
+
+| 分支 | 职责 |
+|---|---|
+| `dev` | 开发分支：包含完整代码、测试（`npm test`）、设计文档；push 不部署 |
+| `main` | 生产分支：仅保留生产所需文件（无测试与文档）；push 自动部署 |
+
+日常开发在 `dev` 上进行，发布时在 `dev` 分支运行：
+
+```bash
+npm run release    # 同步 dev → main（自动剔除非生产文件并提交）
+git push origin main   # 触发自动部署
+```
+
 ## 部署（推荐：GitHub Actions 自动部署）
 
-push 到 `main` 或 `dev` 分支即自动部署；首次部署会自动创建 D1 数据库、建表并生成加密密钥。
+push 到 `main` 分支即自动部署；首次部署会自动创建 D1 数据库（`cronjob_db`）、建表并生成加密密钥。
 
 只需一次性在 GitHub 仓库 Settings → Secrets and variables → Actions 添加 3 个 secret：
 
@@ -37,15 +51,15 @@ push 到 `main` 或 `dev` 分支即自动部署；首次部署会自动创建 D1
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Dashboard 首页右侧 Account ID |
 | `ADMIN_PASSWORD` | 管理页登录密码（想改密码就改这里再 push） |
 
-配置完成后 push 一次代码即完成首次部署。之后：
+配置完成后把 `main` push 到 GitHub 即完成首次部署。之后：
 
-- 代码改动 push 到 `main`/`dev` → 自动重新部署
+- 代码改动通过 `npm run release` + push `main` → 自动重新部署
 - 也可在仓库 Actions 页面手动 Run workflow
 - `TOKEN_ENC_KEY`（PAT 加密密钥）首次部署自动生成，之后不会变动；换钥匙会导致已存 PAT 无法解密，如需重置需删除该 secret 并重新粘贴所有 PAT
 
 ### 本地部署（备选）
 
-`wrangler.jsonc` 无需配置 database_id：首次 `npm run deploy` 会自动创建名为 `cronjob` 的 D1 数据库，之后按名称自动连接。
+`wrangler.jsonc` 无需配置 database_id：首次 `npm run deploy` 会自动创建名为 `cronjob_db` 的 D1 数据库，之后按名称自动连接。
 
 ```bash
 npx wrangler secret put ADMIN_PASSWORD
