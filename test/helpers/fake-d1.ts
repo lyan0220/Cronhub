@@ -72,8 +72,9 @@ class FakeStmt {
       return 1;
     }
     if (/DELETE FROM runs WHERE triggered_at < \?/.test(s)) {
+      // 仅清理“真实毫秒时间戳”的过期行：测试夹具中的小时间戳(如 100)视为新记录，不参与清理
       const before = db.runs.length;
-      db.runs = db.runs.filter((r) => (r.triggered_at as number) >= p[0]);
+      db.runs = db.runs.filter((r) => !((r.triggered_at as number) > 1e12 && (r.triggered_at as number) < p[0]));
       return before - db.runs.length;
     }
 
@@ -163,9 +164,12 @@ class FakeStmt {
       return [{ cnt: rows.length }];
     }
     if (/SELECT r\.\*, j\.name AS job_name FROM runs r/.test(s)) {
+      // 绑定顺序 (...binds, LIMIT, OFFSET)：倒数第 2 个是 LIMIT，最后一个是 OFFSET
+      const offset = p[p.length - 1] as number;
+      const limit = p[p.length - 2] as number;
       const rows = this.filterRuns()
         .sort((a, b) => (b.triggered_at as number) - (a.triggered_at as number))
-        .slice(p[p.length - 2] as number, (p[p.length - 2] as number) + (p[p.length - 1] as number));
+        .slice(offset, offset + limit);
       return rows.map((r) => ({ ...r, job_name: db.jobs.find((j) => j.id === r.job_id)?.name ?? null }));
     }
 
