@@ -38,7 +38,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
-          set -e
+          # pipefail：管道退出码传导 wrangler 的失败，防止 secret list 失败时
+          # EXISTING 误为空 → 重新生成 TOKEN_ENC_KEY 覆盖旧值（PAT 将无法解密）
+          set -eo pipefail
           EXISTING=$(npx wrangler secret list | jq -r '.[].name')
 
           # TOKEN_ENC_KEY：首次生成，之后绝不覆盖（换钥匙会导致已存 PAT 无法解密）
