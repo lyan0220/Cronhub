@@ -73,6 +73,11 @@ describe("账号路由", () => {
     expect(db.accounts[0].token_encrypted).not.toContain("ghp_replaced");
   });
 
+  it("更新名称超长被拒绝", async () => {
+    const res = await req("/1", { method: "PUT", body: JSON.stringify({ name: "长".repeat(101) }) });
+    expect(res.status).toBe(400);
+  });
+
   it("删除账号级联删除任务与运行记录", async () => {
     db.jobs.push({ id: 7, name: "j", account_id: 1, repo: "a/b", trigger_type: "workflow_dispatch", workflow_id: "x.yml", event_type: null, ref: "main", inputs_json: null, schedule_json: "{}", enabled: 1, next_run_at: 0, last_run_at: null, created_at: 0, updated_at: 0 });
     db.runs.push({ id: 1, job_id: 7, triggered_at: 1, source: "manual", status: "success", http_status: 204, error_message: null });

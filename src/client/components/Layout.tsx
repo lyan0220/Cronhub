@@ -3,8 +3,8 @@ import { post } from "../api";
 
 const links = [
   { to: "/", label: "仪表盘", end: true },
-  { to: "/jobs", label: "任务", end: false },
   { to: "/accounts", label: "账号", end: false },
+  { to: "/jobs", label: "任务", end: false },
   { to: "/runs", label: "运行记录", end: false },
 ];
 

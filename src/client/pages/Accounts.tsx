@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { del, fmtTime, get, post } from "../api";
+import { del, fmtTime, get, post, put } from "../api";
 import { useToast } from "../components/Toast";
 import type { Account } from "../types";
 
@@ -13,6 +13,56 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs ${cls}`}>{label}</span>;
 }
 
+// 卡片内编辑表单：备注名预填，token 留空表示不修改
+function EditForm({ account, onDone }: { account: Account; onDone: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState(account.name);
+  const [token, setToken] = useState("");
+  const [verify, setVerify] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await put(`/api/accounts/${account.id}`, {
+        name,
+        ...(token ? { token } : {}),
+        verify,
+      });
+      toast("账号已更新");
+      onDone();
+    } catch (err) {
+      toast((err as Error).message, "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
+      <label className="mb-1 block text-xs">备注名</label>
+      <input value={name} onChange={e => setName(e.target.value)}
+        className="mb-3 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
+      <label className="mb-1 block text-xs">Personal Access Token</label>
+      <input value={token} onChange={e => setToken(e.target.value)} placeholder="留空则不修改 Token" type="password"
+        className="mb-3 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
+      <label className="mb-3 flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={verify} onChange={e => setVerify(e.target.checked)} />
+        保存时在线验证 Token（推荐）
+      </label>
+      <div className="flex gap-2">
+        <button disabled={busy} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 disabled:opacity-50">
+          {busy ? "保存中…" : "保存"}
+        </button>
+        <button type="button" onClick={onDone} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">
+          取消
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Accounts() {
   const toast = useToast();
   const [list, setList] = useState<Account[]>([]);
@@ -21,6 +71,7 @@ export default function Accounts() {
   const [token, setToken] = useState("");
   const [verify, setVerify] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   async function load() {
     setList(await get<Account[]>("/api/accounts"));
@@ -100,10 +151,15 @@ export default function Accounts() {
             </div>
             <div className="mb-1 font-mono text-sm text-neutral-500">{a.token_fingerprint}</div>
             <div className="mb-3 text-xs text-neutral-400">上次验证：{fmtTime(a.last_verified_at)}</div>
-            <div className="flex gap-2">
-              <button onClick={() => reVerify(a)} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">重新验证</button>
-              <button onClick={() => remove(a)} className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950">删除</button>
-            </div>
+            {editingId === a.id ? (
+              <EditForm account={a} onDone={async () => { setEditingId(null); await load(); }} />
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => reVerify(a)} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">重新验证</button>
+                <button onClick={() => setEditingId(a.id)} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">编辑</button>
+                <button onClick={() => remove(a)} className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950">删除</button>
+              </div>
+            )}
           </div>
         ))}
         {list.length === 0 && <div className="text-sm text-neutral-500">还没有账号，点击右上角添加。</div>}
