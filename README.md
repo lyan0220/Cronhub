@@ -25,32 +25,34 @@ curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"   # 返回 {"ou
 
 > 端点说明：wrangler 4.x 使用 `/cdn-cgi/local/scheduled`；旧版 wrangler（≤3.x）使用 `curl "http://localhost:8787/__scheduled?cron=*"`。
 
-## 部署
+## 部署（推荐：GitHub Actions 自动部署）
 
-1. 创建 D1 数据库，并把返回的 database_id 填入 `wrangler.jsonc`：
+push 到 `main` 或 `dev` 分支即自动部署；首次部署会自动创建 D1 数据库、建表并生成加密密钥。
 
-   ```bash
-   npx wrangler d1 create cronjob
-   ```
+只需一次性在 GitHub 仓库 Settings → Secrets and variables → Actions 添加 3 个 secret：
 
-2. 初始化远程数据库表结构：
+| Secret | 值 |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare Dashboard → My Profile → API Tokens → Create Token，模板选 "Edit Cloudflare Workers"，确保包含 **Workers Scripts:Edit** 与 **D1:Edit** 权限 |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Dashboard 首页右侧 Account ID |
+| `ADMIN_PASSWORD` | 管理页登录密码（想改密码就改这里再 push） |
 
-   ```bash
-   npm run db:init
-   ```
+配置完成后 push 一次代码即完成首次部署。之后：
 
-3. 设置两个 Secret（TOKEN_ENC_KEY 建议用 `openssl rand -hex 32` 生成；换钥匙会导致已存 token 无法解密）：
+- 代码改动 push 到 `main`/`dev` → 自动重新部署
+- 也可在仓库 Actions 页面手动 Run workflow
+- `TOKEN_ENC_KEY`（PAT 加密密钥）首次部署自动生成，之后不会变动；换钥匙会导致已存 PAT 无法解密，如需重置需删除该 secret 并重新粘贴所有 PAT
 
-   ```bash
-   npx wrangler secret put ADMIN_PASSWORD
-   npx wrangler secret put TOKEN_ENC_KEY
-   ```
+### 本地部署（备选）
 
-4. 部署：
+`wrangler.jsonc` 无需配置 database_id：首次 `npm run deploy` 会自动创建名为 `cronjob` 的 D1 数据库，之后按名称自动连接。
 
-   ```bash
-   npm run deploy
-   ```
+```bash
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put TOKEN_ENC_KEY   # 建议 openssl rand -hex 32
+npm run db:init                          # 建表（幂等）
+npm run deploy
+```
 
 ## 使用说明
 
