@@ -106,6 +106,33 @@ describe("runDueJobs", () => {
     expect(db.runs).toHaveLength(0);
   });
 
+  it("单任务 schedule_json 损坏不影响其余任务：runDueJobs 不 reject、后续任务正常触发", async () => {
+    const { env, db } = await makeEnv();
+    // 第一个任务 next_run_at 更早（排序在前），schedule_json 为损坏 JSON
+    addJob(db, { id: 1, next_run_at: NOW - 2_000, schedule_json: "{oops" });
+    addJob(db, { id: 2, name: "job2", next_run_at: NOW - 1_000 });
+    const r = await runDueJobs(env, NOW); // 不应 reject（单个任务异常被隔离）
+    expect(r).toEqual({ triggered: 1, failed: 1 });
+    // 第二个任务仍被触发并推进 next_run_at
+    const job2 = db.jobs.find((j) => j.id === 2) as Record<string, unknown>;
+    expect(job2.next_run_at).toBe(NOW - 1_000 + 45 * 60_000);
+    const successRuns = db.runs.filter((x) => x.job_id === 2 && x.status === "success");
+    expect(successRuns).toHaveLength(1);
+    // 损坏任务也要推进 next_run_at，防止每 5 分钟热循环重试
+    const job1 = db.jobs.find((j) => j.id === 1) as Record<string, unknown>;
+    expect((job1.next_run_at as number)).toBeGreaterThan(NOW);
+  });
+
+  it("cron 无可达触发时间（如 0 0 29 2 *）不 reject 且 next_run_at 兜底推进", async () => {
+    const { env, db } = await makeEnv();
+    addJob(db, { schedule_json: JSON.stringify({ type: "cron", expr: "0 0 29 2 *" }) });
+    const r = await runDueJobs(env, NOW); // 不应 reject（抛错被隔离）
+    expect(r).toEqual({ triggered: 0, failed: 1 });
+    // 不产生成功 runs；失败已记录
+    expect(db.runs.filter((x) => x.status === "success")).toHaveLength(0);
+    expect((db.jobs[0].next_run_at as number)).toBeGreaterThan(NOW); // 兜底推进防热循环
+  });
+
   it("清理 90 天前的运行记录", async () => {
     const { env, db } = await makeEnv();
     db.runs.push({ id: 1, job_id: 1, triggered_at: NOW - 91 * 24 * 3600 * 1000, source: "schedule", status: "success", http_status: 204, error_message: null });
