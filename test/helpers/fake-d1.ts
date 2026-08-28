@@ -191,7 +191,11 @@ class FakeStmt {
   private filterRuns(): Row[] {
     const s = this.sql.replace(/\s+/g, " ").trim();
     const db = this.db;
-    if (/WHERE r\.job_id=\?/.test(s)) return db.runs.filter((r) => r.job_id === this.params[0]);
-    return [...db.runs];
+    // 绑定顺序与 WHERE 构造顺序一致：job_id 在前、status 在后（无则不占位）
+    let rows = [...db.runs];
+    let i = 0;
+    if (/WHERE r\.job_id=\?/.test(s)) { const v = this.params[i++]; rows = rows.filter((r) => r.job_id === v); }
+    if (/(?:WHERE|AND) r\.status=\?/.test(s)) { const v = this.params[i++]; rows = rows.filter((r) => r.status === v); }
+    return rows;
   }
 }

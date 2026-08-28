@@ -32,6 +32,34 @@ describe("runs 路由", () => {
     const json = (await res.json()) as { data: { total: number } };
     expect(json.data.total).toBe(2);
   });
+  it("status=success 只返回成功记录", async () => {
+    const res = await runRoutes.request("/?status=success", {}, env);
+    const json = (await res.json()) as { data: { total: number; rows: Array<{ id: number; status: string }> } };
+    expect(json.data.total).toBe(2);
+    expect(json.data.rows.map((r) => r.id)).toEqual([3, 1]);
+    expect(json.data.rows.every((r) => r.status === "success")).toBe(true);
+  });
+  it("status=failed 只返回失败记录", async () => {
+    const res = await runRoutes.request("/?status=failed", {}, env);
+    const json = (await res.json()) as { data: { total: number; rows: Array<{ id: number; status: string }> } };
+    expect(json.data.total).toBe(1);
+    expect(json.data.rows.map((r) => r.id)).toEqual([2]);
+    expect(json.data.rows[0].status).toBe("failed");
+  });
+  it("无 status 返回全部记录", async () => {
+    const res = await runRoutes.request("/", {}, env);
+    const json = (await res.json()) as { data: { total: number; rows: unknown[] } };
+    expect(json.data.total).toBe(3);
+    expect(json.data.rows).toHaveLength(3);
+  });
+  it("status 与 job_id 组合过滤", async () => {
+    const res = await runRoutes.request("/?job_id=1&status=failed", {}, env);
+    const json = (await res.json()) as { data: { total: number; rows: Array<{ id: number; job_id: number; status: string }> } };
+    expect(json.data.total).toBe(1);
+    expect(json.data.rows.map((r) => r.id)).toEqual([2]);
+    expect(json.data.rows[0].job_id).toBe(1);
+    expect(json.data.rows[0].status).toBe("failed");
+  });
   it("cleanup 删除过期记录", async () => {
     db.runs.push({ id: 4, job_id: 1, triggered_at: Date.now() - 91 * 24 * 3600 * 1000, source: "schedule", status: "success", http_status: 204, error_message: null });
     const res = await runRoutes.request("/cleanup", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }, env);

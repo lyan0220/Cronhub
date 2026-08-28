@@ -7,9 +7,14 @@ const PAGE_SIZE = 50;
 runRoutes.get("/", async (c) => {
   const jobId = Number(c.req.query("job_id") ?? 0);
   const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
+  const statusQuery = c.req.query("status");
+  const status = statusQuery === "success" || statusQuery === "failed" ? statusQuery : null;
   const offset = (page - 1) * PAGE_SIZE;
-  const where = jobId > 0 ? "WHERE r.job_id=?" : "";
-  const binds = jobId > 0 ? [jobId] : [];
+  const conds: string[] = [];
+  const binds: (number | string)[] = [];
+  if (jobId > 0) { conds.push("r.job_id=?"); binds.push(jobId); }
+  if (status) { conds.push("r.status=?"); binds.push(status); }
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
   const cnt = await c.env.DB.prepare(`SELECT COUNT(*) AS cnt FROM runs r ${where}`)
     .bind(...binds)

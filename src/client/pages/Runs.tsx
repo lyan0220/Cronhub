@@ -9,6 +9,7 @@ export default function Runs() {
   const toast = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState(0);
+  const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<Run[]>([]);
@@ -17,12 +18,12 @@ export default function Runs() {
   useEffect(() => { get<Job[]>("/api/jobs").then(setJobs); }, []);
 
   useEffect(() => {
-    const q = new URLSearchParams({ page: String(page), ...(jobId ? { job_id: String(jobId) } : {}) });
+    const q = new URLSearchParams({ page: String(page), ...(jobId ? { job_id: String(jobId) } : {}), ...(status ? { status } : {}) });
     get<{ total: number; rows: Run[] }>(`/api/runs?${q}`).then(d => {
       setTotal(d.total);
       setRows(d.rows);
     });
-  }, [jobId, page]);
+  }, [jobId, status, page]);
 
   async function cleanup() {
     if (!confirm("清理 90 天前的运行记录？")) return;
@@ -46,6 +47,13 @@ export default function Runs() {
           className="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700 dark:bg-neutral-800">
           <option value={0}>全部</option>
           {jobs.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
+        </select>
+        <span className="text-neutral-500">按状态筛选：</span>
+        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 dark:border-neutral-700 dark:bg-neutral-800">
+          <option value="">全部</option>
+          <option value="success">成功</option>
+          <option value="failed">失败</option>
         </select>
       </div>
 
