@@ -23,7 +23,7 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
       <form onSubmit={submit} className="w-80 rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <h1 className="mb-6 text-center text-xl font-bold">Actions 定时中心</h1>
+        <h1 className="mb-6 text-center text-xl font-bold">Actions Cronhub</h1>
         <input type="password" placeholder="管理密码" value={password} autoFocus
           onChange={e => setPassword(e.target.value)}
           className="mb-4 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />

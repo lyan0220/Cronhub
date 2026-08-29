@@ -17,7 +17,7 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
       <aside className="flex w-52 shrink-0 flex-col border-r border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="mb-6 px-2 text-lg font-bold">Actions 定时中心</div>
+        <div className="mb-6 px-2 text-lg font-bold">Actions Cronhub</div>
         <nav className="flex flex-col gap-1">
           {links.map(l => (
             <NavLink key={l.to} to={l.to} end={l.end}
