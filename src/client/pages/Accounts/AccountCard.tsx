@@ -2,7 +2,7 @@ import { useState } from "react";
 import { put } from "../../api";
 import { useToast } from "../../components/Toast";
 import type { Account } from "../../types";
-import { Badge, Button, Card, Field, Input } from "../../ui";
+import { Badge, Button, Card, Field, Input, cx } from "../../ui";
 import {
   CircleAlert, CircleCheck, CircleX, KeyRound, Pencil, RefreshCw, Trash2,
 } from "../../ui/icons";
@@ -109,10 +109,17 @@ function EditForm({ account, onCancel, onSaved }:
             placeholder="ghp_… / github_pat_…" onChange={e => setToken(e.target.value)} />
         )}
       </Field>
-      <label className="flex items-center gap-2 text-xs text-fg-muted">
-        <input type="checkbox" checked={verify} className="accent-accent"
+      {/* 后端的 PUT /api/accounts/:id 只在「带了新 token」的分支里读 verify，
+          token 留空时勾不勾都不会发生任何事。所以这里跟着 token 一起禁用——
+          界面不该承诺一件实际不会执行的操作。要单独复验现有 token，
+          用卡片上的「验证」按钮（走 POST /api/accounts/:id/verify）。 */}
+      <label className={cx(
+        "flex items-center gap-2 text-xs text-fg-muted",
+        !token && "opacity-50",
+      )}>
+        <input type="checkbox" checked={verify} disabled={!token} className="accent-accent"
           onChange={e => setVerify(e.target.checked)} />
-        保存时在线验证 Token（推荐）
+        保存新 Token 时在线验证（推荐）
       </label>
       <div className="mt-auto flex gap-2">
         <Button type="submit" size="sm" variant="primary" loading={busy}>保存</Button>
