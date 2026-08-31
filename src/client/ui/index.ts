@@ -8,3 +8,7 @@ export { Card } from "./Card";
 export { Badge } from "./Badge";
 export { Switch } from "./Switch";
 export { Segmented } from "./Segmented";
+export { Dialog } from "./Dialog";
+export { ConfirmProvider, useConfirm, type ConfirmOptions } from "./ConfirmDialog";
+export { Drawer } from "./Drawer";
+export { Menu, type MenuItem } from "./Menu";

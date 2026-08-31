@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import { ToastProvider } from "./components/Toast";
+import { ConfirmProvider } from "./ui/ConfirmDialog";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -11,15 +12,17 @@ import Runs from "./pages/Runs";
 export default function App() {
   return (
     <ToastProvider>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route element={<RequireAuth><Layout /></RequireAuth>}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/jobs" element={<Jobs />} />
-          <Route path="/accounts" element={<Accounts />} />
-          <Route path="/runs" element={<Runs />} />
-        </Route>
-      </Routes>
+      <ConfirmProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route element={<RequireAuth><Layout /></RequireAuth>}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/jobs" element={<Jobs />} />
+            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/runs" element={<Runs />} />
+          </Route>
+        </Routes>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }
