@@ -13,6 +13,7 @@ describe("parseSchedule", () => {
   it("合法 JSON 但不是对象也兜底", () => {
     expect(parseSchedule("42")).toEqual(EMPTY_SCHEDULE);
     expect(parseSchedule("null")).toEqual(EMPTY_SCHEDULE);
+    expect(parseSchedule("[1,2]")).toEqual(EMPTY_SCHEDULE);
   });
 });
 
