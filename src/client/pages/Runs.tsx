@@ -1,11 +1,11 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { get, post } from "../api";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import type { Job, Run } from "../types";
 import { Button, EmptyState, Segmented, Select, Skeleton, cx, useConfirm } from "../ui";
-import { ChevronLeft, ChevronRight, Inbox, Trash2 } from "../ui/icons";
+import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Trash2 } from "../ui/icons";
 import { fmtTime } from "../utils/time";
 
 const PAGE_SIZE = 50; // 与服务端 routes/runs.ts 的 PAGE_SIZE 一致
@@ -15,6 +15,7 @@ type StatusFilter = "" | "success" | "failed";
 export default function Runs() {
   const toast = useToast();
   const confirm = useConfirm();
+  const detailId = useId();
   const [params, setParams] = useSearchParams();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [total, setTotal] = useState(0);
@@ -86,7 +87,9 @@ export default function Runs() {
         title="运行记录"
         description={`共 ${total} 条，保留最近 90 天。`}
         action={
-          <Button variant="secondary" onClick={() => void cleanup()}
+          // 本页唯一的头部动作是破坏性的，所以用 danger 而非 primary：
+          // 近黑的 primary 会把「清理」讲成本页推荐的下一步。
+          <Button variant="danger" onClick={() => void cleanup()}
             icon={<Trash2 className="size-4" />}>清理 90 天前记录</Button>
         }
       />
@@ -141,26 +144,15 @@ export default function Runs() {
               const isOpen = expanded === r.id;
               return (
                 <Fragment key={r.id}>
+                  {/* 整行可点只是鼠标便利，所以 <tr> 保持原生 row 语义：给它套
+                      role="button" 会顶掉 row 角色，读屏软件的表格导航（按单元格、
+                      读表头）就整块失效了。键盘与读屏走下面状态格里那个真正的
+                      <button>，它带 aria-expanded 与 aria-controls。 */}
                   <tr
-                    role={canExpand ? "button" : undefined}
-                    tabIndex={canExpand ? 0 : undefined}
-                    aria-expanded={canExpand ? isOpen : undefined}
                     onClick={canExpand ? () => setExpanded(isOpen ? null : r.id) : undefined}
-                    onKeyDown={canExpand
-                      ? e => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setExpanded(isOpen ? null : r.id);
-                          }
-                        }
-                      : undefined}
                     className={cx(
                       "border-b border-border/60 last:border-0",
                       "transition-colors duration-fast ease-smooth",
-                      // 焦点态用 outline 而不是全站惯例的 ring：ring 是 box-shadow，
-                      // 在 border-collapse: collapse 的表格里 <tr> 上不绘制（Chrome），
-                      // 写成 ring 等于把可聚焦行的焦点指示彻底做没。
-                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                       failed ? "bg-danger-soft" : "hover:bg-panel-hover",
                       canExpand && "cursor-pointer",
                     )}
@@ -174,13 +166,30 @@ export default function Runs() {
                     <td className="p-3">{r.job_name ?? `任务#${r.job_id}`}</td>
                     <td className="p-3 text-xs text-fg-muted">{r.source === "manual" ? "手动" : "定时"}</td>
                     <td className={cx("p-3 text-xs font-medium", failed ? "text-danger" : "text-success")}>
-                      {failed ? "失败" : "成功"}
+                      {canExpand ? (
+                        <button type="button"
+                          aria-expanded={isOpen}
+                          aria-controls={`${detailId}-${r.id}`}
+                          onClick={e => { e.stopPropagation(); setExpanded(isOpen ? null : r.id); }}
+                          className={cx(
+                            "inline-flex items-center gap-1 rounded font-medium",
+                            "underline decoration-dotted underline-offset-2",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+                          )}>
+                          失败
+                          <ChevronDown aria-hidden className={cx(
+                            "size-3.5 transition-transform duration-fast ease-smooth",
+                            isOpen && "rotate-180",
+                          )} />
+                        </button>
+                      ) : failed ? "失败" : "成功"}
                     </td>
                     <td className="p-3 font-mono text-xs tabular-nums">{r.http_status || "-"}</td>
                   </tr>
                   {isOpen && r.error_message && (
                     <tr className="border-b border-border/60 last:border-0">
-                      <td colSpan={5} className="border-l-2 border-l-danger bg-danger-soft px-4 py-3">
+                      <td id={`${detailId}-${r.id}`} colSpan={5}
+                        className="border-l-2 border-l-danger bg-danger-soft px-4 py-3">
                         {/* 错误文本可能很长且带换行：pre-wrap 保留换行，break-all 兜住
                             长 URL / JSON 不撑破表格。绝不用 dangerouslySetInnerHTML。 */}
                         <p className="font-mono text-xs break-all whitespace-pre-wrap text-danger">
