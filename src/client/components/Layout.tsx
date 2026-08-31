@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { get, post } from "../api";
 import type { Stats } from "../types";
@@ -20,6 +20,12 @@ const LINKS: Link[] = [
   { to: "/jobs", label: "任务", end: false, Icon: Timer, count: "total_jobs" },
   { to: "/runs", label: "运行记录", end: false, Icon: ScrollText },
 ];
+
+const iconBtn = cx(
+  "rounded-md p-1 text-fg-muted transition-colors duration-fast ease-smooth",
+  "hover:bg-panel-hover hover:text-fg",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+);
 
 function NavItems({ stats, onNavigate }: { stats: Stats | null; onNavigate?: () => void }) {
   return (
@@ -53,28 +59,39 @@ export default function Layout() {
   const loc = useLocation();
   const [stats, setStats] = useState<Stats | null>(null);
   const [open, setOpen] = useState(false);
+  const drawerRef = useRef<HTMLDialogElement>(null);
 
-  // 路由变化就重新拉计数：新建或删除任务/账号后，徽章不会停在旧值。
-  useEffect(() => { get<Stats>("/api/stats").then(setStats).catch(() => {}); }, [loc.pathname]);
+  // 路由切换就重新拉计数。alive 标记有两个作用：快速连切路由时先发后到的旧响应
+  // 不会覆盖新响应（否则删掉一个任务再切页，徽章会退回删除前的值），
+  // 以及退出登录卸载 Layout 后不再对已卸载组件 setState。
+  // 已知局限：任务/账号的新建与删除走同页抽屉（不换路由），那时徽章仍停在旧值。
+  useEffect(() => {
+    let alive = true;
+    get<Stats>("/api/stats").then(s => { if (alive) setStats(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [loc.pathname]);
 
-  // 抽屉打开期间锁背景滚动，并支持 Esc 关闭。
-  // 同时监听断点：拉宽到 ≥ lg 时抽屉与汉堡都被 CSS 隐藏，但 open 仍为 true——
-  // 滚动锁不会解除，而界面上已经没有可见的关闭入口。所以断点一过就强制收起。
+  // 抽屉用原生 <dialog> + showModal()：焦点约束、Esc 关闭、::backdrop、背景惰性
+  // 全部由浏览器负责，关闭时焦点还会自动归还给汉堡按钮。手写覆盖层这些都要自己实现，
+  // 而且上一版就漏了焦点约束——Tab 会走进遮罩背后的正文。
+  useEffect(() => {
+    const el = drawerRef.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    if (!open && el.open) el.close();
+  }, [open]);
+
+  // 拉宽到 ≥ lg 时汉堡被 CSS 隐藏，界面上已没有可见的关闭入口，所以断点一过就强制收起。
+  // 断点必须用 rem：Tailwind 的 lg 是 64rem，会随浏览器默认字号缩放。写死 1024px 时，
+  // 用户把默认字号调大后 CSS 仍判定窄屏（显示汉堡）而 JS 已判定宽屏，
+  // 点汉堡会被立刻强制收起，导航彻底不可达。
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    const mq = matchMedia("(min-width: 1024px)");
+    const mq = matchMedia("(min-width: 64rem)");
     const onWide = () => { if (mq.matches) setOpen(false); };
     onWide();
-    document.addEventListener("keydown", onKey);
     mq.addEventListener("change", onWide);
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener("keydown", onKey);
-      mq.removeEventListener("change", onWide);
-    };
+    return () => mq.removeEventListener("change", onWide);
   }, [open]);
 
   async function logout() {
@@ -108,37 +125,41 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-surface text-fg">
-      {/* 桌面固定侧栏（≥ lg） */}
-      <aside className="fixed inset-y-0 left-0 hidden w-56 flex-col border-r border-border bg-panel p-4 lg:flex">
+      {/* 桌面固定侧栏（≥ lg）。overflow-y-auto：横屏手机等极矮视口下 footer 不至于被裁掉且无法滚动。 */}
+      <aside className="fixed inset-y-0 left-0 hidden w-56 flex-col overflow-y-auto border-r border-border bg-panel p-4 lg:flex">
         {brand}
         <div className="mt-6"><NavItems stats={stats} /></div>
         {footer}
       </aside>
 
-      {/* 窄屏抽屉导航（< lg） */}
-      {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div onClick={() => setOpen(false)}
-            className="animate-fade-in absolute inset-0 bg-black/50" />
-          <aside className="animate-in-left absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-panel p-4">
-            <div className="flex items-center justify-between gap-2">
-              {brand}
-              <button type="button" onClick={() => setOpen(false)} aria-label="关闭导航"
-                className="rounded-md p-1 text-fg-muted transition-colors duration-fast hover:bg-panel-hover hover:text-fg">
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-            <div className="mt-6"><NavItems stats={stats} onNavigate={() => setOpen(false)} /></div>
-            {footer}
-          </aside>
+      {/* 窄屏抽屉导航（< lg）。始终挂载，由 showModal()/close() 控制显隐——
+          <dialog> 需要节点存在才能拿到 ref。 */}
+      <dialog ref={drawerRef} aria-label="导航"
+        onClose={() => setOpen(false)}
+        onClick={e => { if (e.target === drawerRef.current) setOpen(false); }}
+        className={cx(
+          "mr-auto ml-0 h-full max-h-full w-64 max-w-full",
+          "rounded-none border-r border-border bg-panel p-0 text-fg",
+          "open:animate-in-left backdrop:bg-black/50",
+        )}>
+        <div className="flex h-full flex-col overflow-y-auto p-4">
+          <div className="flex items-center justify-between gap-2">
+            {brand}
+            <button type="button" onClick={() => setOpen(false)} aria-label="关闭导航"
+              className={iconBtn}>
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+          <div className="mt-6"><NavItems stats={stats} onNavigate={() => setOpen(false)} /></div>
+          {footer}
         </div>
-      )}
+      </dialog>
 
       <div className="lg:pl-56">
         {/* 窄屏顶部条 */}
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-panel/85 px-4 py-3 backdrop-blur lg:hidden">
           <button type="button" onClick={() => setOpen(true)} aria-label="打开导航" aria-expanded={open}
-            className="rounded-md p-1 text-fg-muted transition-colors duration-fast hover:bg-panel-hover hover:text-fg">
+            className={iconBtn}>
             <MenuIcon className="size-5" aria-hidden />
           </button>
           {brand}
