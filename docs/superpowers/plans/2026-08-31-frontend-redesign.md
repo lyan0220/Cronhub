@@ -259,14 +259,17 @@ Expected: PASS，3 个用例全绿
   --color-warn-soft: var(--warn-soft);
 
   --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 240ms;
+  /* 必须是 --transition-duration-*，不是 --duration-*。Tailwind v4 的 duration-* */
+  /* 功能类只从 --transition-duration 命名空间解析；写成 --duration-* 时变量会输出到 */
+  /* :root，但 .duration-fast 这个类根本不会生成，过渡会静默回落到默认时长。 */
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 180ms;
+  --transition-duration-slow: 240ms;
 
-  --animate-in-pop: in-pop var(--duration-base) var(--ease-smooth);
-  --animate-in-right: in-right var(--duration-slow) var(--ease-smooth);
-  --animate-in-left: in-left var(--duration-slow) var(--ease-smooth);
-  --animate-fade-in: fade-in var(--duration-base) var(--ease-smooth);
+  --animate-in-pop: in-pop var(--transition-duration-base) var(--ease-smooth);
+  --animate-in-right: in-right var(--transition-duration-slow) var(--ease-smooth);
+  --animate-in-left: in-left var(--transition-duration-slow) var(--ease-smooth);
+  --animate-fade-in: fade-in var(--transition-duration-base) var(--ease-smooth);
   --animate-shake: shake 160ms ease-in-out;
   --animate-pulse-soft: pulse-soft 1.5s ease-in-out infinite;
 }
@@ -314,7 +317,11 @@ Expected: PASS，3 个用例全绿
 }
 ```
 
-`--animate-*` 令牌让 `animate-in-pop`、`animate-in-right`、`animate-in-left`、`animate-fade-in`、`animate-shake`、`animate-pulse-soft` 成为可用的工具类，`--duration-*` 让 `duration-fast/base/slow` 可用，`--ease-smooth` 让 `ease-smooth` 可用。
+`--animate-*` 令牌让 `animate-in-pop`、`animate-in-right`、`animate-in-left`、`animate-fade-in`、`animate-shake`、`animate-pulse-soft` 成为可用的工具类，`--transition-duration-*` 让 `duration-fast/base/slow` 可用，`--ease-smooth` 让 `ease-smooth` 可用。
+
+三个时长令牌的命名空间**必须**是 `--transition-duration-*`。这一条在 Tailwind v4.3.3 上实测过：写成 `--duration-*` 时变量会正常输出到 `:root`，`--animate-*` 里的 `var()` 也能解析，但构建产物里**一条 `.duration-fast` 规则都没有**——`duration-*` 功能类只查 `--transition-duration` 命名空间。这是静默失败，不报错，只是过渡时长回落到默认值。验收方式：构建后 `grep '\.duration-base{' dist/client/assets/*.css` 必须有输出。
+
+对照：缓动的命名空间就是 `--ease-*`（不是 `--transition-timing-function-*`），所以 `--ease-smooth` 是对的。两者不对称，别类推。
 
 - [ ] **Step 6: 在 `index.html` 加首屏防闪脚本**
 
@@ -349,6 +356,21 @@ Expected：
 - typecheck 无输出（通过）
 - `npm test` 全绿，用例数比重构前多 3 个（新增的 `resolveDark`）
 - build 成功，产物写入 `dist/`
+
+再对构建产物做一次机器核验——令牌层是否真的生成了工具类，只有产物能证明：
+
+Run:
+```bash
+grep -c '\.duration-fast{\|\.duration-base{\|\.duration-slow{' dist/client/assets/*.css
+grep -c '\.ease-smooth{' dist/client/assets/*.css
+grep -o '\.bg-panel{[^}]*}' dist/client/assets/*.css
+grep -c '^\.dark,\|\.dark{' dist/client/assets/*.css
+```
+Expected：
+- 第一条输出 `3`（三个时长类都生成了）。若输出 `0`，说明命名空间写错了，回到 Step 5 检查是不是写成了 `--duration-*`
+- 第二条输出 `1`
+- 第三条输出 `.bg-panel{background-color:var(--panel)}` —— **必须是 `var(--panel)` 而不是 `#ffffff`**，否则 `@theme inline` 没生效，`.dark` 覆盖会失效
+- 第四条大于 `0`
 
 - [ ] **Step 8: 人工核验**
 

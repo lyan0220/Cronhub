@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { resolveDark } from "../src/client/theme";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { resolveDark, readThemePref } from "../src/client/theme";
 
 describe("resolveDark", () => {
   it("light 偏好始终为浅色，忽略系统", () => {
@@ -13,5 +13,38 @@ describe("resolveDark", () => {
   it("system 偏好跟随系统", () => {
     expect(resolveDark("system", true)).toBe(true);
     expect(resolveDark("system", false)).toBe(false);
+  });
+});
+
+describe("readThemePref", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("没有存过 theme 时返回 system", () => {
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    expect(readThemePref()).toBe("system");
+  });
+
+  it("存的是合法值时原样返回", () => {
+    vi.stubGlobal("localStorage", { getItem: () => "dark" });
+    expect(readThemePref()).toBe("dark");
+    vi.stubGlobal("localStorage", { getItem: () => "light" });
+    expect(readThemePref()).toBe("light");
+  });
+
+  it("存的是未知值时归一化为 system", () => {
+    vi.stubGlobal("localStorage", { getItem: () => "blue" });
+    expect(readThemePref()).toBe("system");
+  });
+
+  it("访问 localStorage 抛异常时返回 system 且不抛出", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("被浏览器阻止");
+      },
+    });
+    expect(() => readThemePref()).not.toThrow();
+    expect(readThemePref()).toBe("system");
   });
 });

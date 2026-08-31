@@ -58,14 +58,17 @@
   --color-warn-soft: var(--warn-soft);
 
   --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 240ms;
+  /* 必须是 --transition-duration-*，不是 --duration-*。Tailwind v4 的 duration-* */
+  /* 功能类只从 --transition-duration 命名空间解析；写成 --duration-* 时变量会输出到 */
+  /* :root，但 .duration-fast 这个类根本不会生成，过渡会静默回落到默认时长。 */
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 180ms;
+  --transition-duration-slow: 240ms;
 
-  --animate-in-pop: in-pop var(--duration-base) var(--ease-smooth);
-  --animate-in-right: in-right var(--duration-slow) var(--ease-smooth);
-  --animate-in-left: in-left var(--duration-slow) var(--ease-smooth);
-  --animate-fade-in: fade-in var(--duration-base) var(--ease-smooth);
+  --animate-in-pop: in-pop var(--transition-duration-base) var(--ease-smooth);
+  --animate-in-right: in-right var(--transition-duration-slow) var(--ease-smooth);
+  --animate-in-left: in-left var(--transition-duration-slow) var(--ease-smooth);
+  --animate-fade-in: fade-in var(--transition-duration-base) var(--ease-smooth);
   --animate-shake: shake 160ms ease-in-out;
   --animate-pulse-soft: pulse-soft 1.5s ease-in-out infinite;
 }

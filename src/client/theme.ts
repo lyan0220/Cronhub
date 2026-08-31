@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export type ThemePref = "system" | "light" | "dark";
 
+/** localStorage 的 key。与 index.html 的内联防闪脚本保持同步（key、"dark" 类名、解析规则三处都写了一遍，改这里必须同时改那边）。 */
 const KEY = "theme";
 const MQ = "(prefers-color-scheme: dark)";
 
@@ -35,8 +36,11 @@ export function useTheme() {
     applyTheme(p);
   }, []);
 
-  // system 态下跟随系统实时变化
+  // 挂载时先同步一次：内联防闪脚本可能因 localStorage 抛异常或存了异常值而算出
+  // 与 React 状态不一致的结果，这里让 pref 成为唯一真相源。
+  // system 态下再跟随系统实时变化。
   useEffect(() => {
+    applyTheme(pref);
     if (pref !== "system") return;
     const mq = matchMedia(MQ);
     const onChange = () => applyTheme("system");
