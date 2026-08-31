@@ -361,16 +361,18 @@ Expected：
 
 Run:
 ```bash
-grep -c '\.duration-fast{\|\.duration-base{\|\.duration-slow{' dist/client/assets/*.css
-grep -c '\.ease-smooth{' dist/client/assets/*.css
+grep -o '\.duration-fast{\|\.duration-base{\|\.duration-slow{' dist/client/assets/*.css | wc -l
+grep -o '\.ease-smooth{' dist/client/assets/*.css | wc -l
 grep -o '\.bg-panel{[^}]*}' dist/client/assets/*.css
-grep -c '^\.dark,\|\.dark{' dist/client/assets/*.css
+grep -o '\.dark,\|\.dark{' dist/client/assets/*.css | wc -l
 ```
 Expected：
 - 第一条输出 `3`（三个时长类都生成了）。若输出 `0`，说明命名空间写错了，回到 Step 5 检查是不是写成了 `--duration-*`
 - 第二条输出 `1`
 - 第三条输出 `.bg-panel{background-color:var(--panel)}` —— **必须是 `var(--panel)` 而不是 `#ffffff`**，否则 `@theme inline` 没生效，`.dark` 覆盖会失效
 - 第四条大于 `0`
+
+这里必须用 `grep -o … | wc -l` 而不是 `grep -c`：`grep -c` 数的是**匹配行数**，而压缩后的 CSS 产物整个只有一行，三个类挤在同一行里，`grep -c` 永远只会输出 `1`。按出现次数数才有意义。
 
 - [ ] **Step 8: 人工核验**
 
