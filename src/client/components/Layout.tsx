@@ -58,15 +58,22 @@ export default function Layout() {
   useEffect(() => { get<Stats>("/api/stats").then(setStats).catch(() => {}); }, [loc.pathname]);
 
   // 抽屉打开期间锁背景滚动，并支持 Esc 关闭。
+  // 同时监听断点：拉宽到 ≥ lg 时抽屉与汉堡都被 CSS 隐藏，但 open 仍为 true——
+  // 滚动锁不会解除，而界面上已经没有可见的关闭入口。所以断点一过就强制收起。
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const mq = matchMedia("(min-width: 1024px)");
+    const onWide = () => { if (mq.matches) setOpen(false); };
+    onWide();
     document.addEventListener("keydown", onKey);
+    mq.addEventListener("change", onWide);
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener("keydown", onKey);
+      mq.removeEventListener("change", onWide);
     };
   }, [open]);
 

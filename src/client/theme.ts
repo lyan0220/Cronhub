@@ -27,13 +27,25 @@ export function applyTheme(pref: ThemePref): void {
   document.documentElement.classList.toggle("dark", resolveDark(pref, matchMedia(MQ).matches));
 }
 
+// 模块级单一真相源。ThemeToggle 会同时挂在桌面侧栏与窄屏抽屉两处（用 CSS 隐藏而非卸载），
+// 若每个 useTheme 各持一份 useState，在一处改主题另一处的高亮不会跟着变，
+// 且失效那一份残留的 matchMedia 监听会在系统换色时盖掉用户刚选的偏好。
+let current: ThemePref | null = null;
+const subscribers = new Set<(p: ThemePref) => void>();
+
 export function useTheme() {
-  const [pref, setPrefState] = useState<ThemePref>(readThemePref);
+  const [pref, setPrefState] = useState<ThemePref>(() => (current ??= readThemePref()));
 
   const setPref = useCallback((p: ThemePref) => {
-    setPrefState(p);
+    current = p;
     try { localStorage.setItem(KEY, p); } catch { /* 同上 */ }
     applyTheme(p);
+    subscribers.forEach(fn => fn(p));
+  }, []);
+
+  useEffect(() => {
+    subscribers.add(setPrefState);
+    return () => { subscribers.delete(setPrefState); };
   }, []);
 
   // 挂载时先同步一次：内联防闪脚本可能因 localStorage 抛异常或存了异常值而算出
