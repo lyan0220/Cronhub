@@ -15,14 +15,15 @@ export function Field({ label, hint, error, children }: Props) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errId = `${id}-err`;
-  const describedBy = error ? errId : hint ? hintId : undefined;
+  // hint 与 error 同时存在时两个 id 都要串上：报错的那一刻恰恰最需要格式提示，
+  // 把 hint 换掉会让用户（和读屏软件）失去"应该怎么填"的唯一线索。
+  const describedBy = [hint && hintId, error && errId].filter(Boolean).join(" ") || undefined;
   return (
     <div className="mb-4">
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-fg">{label}</label>
       {children({ id, describedBy })}
-      {error
-        ? <p id={errId} role="alert" className="mt-1.5 text-xs text-danger">{error}</p>
-        : hint && <p id={hintId} className="mt-1.5 text-xs text-fg-muted">{hint}</p>}
+      {hint && <p id={hintId} className="mt-1.5 text-xs text-fg-muted">{hint}</p>}
+      {error && <p id={errId} role="alert" className="mt-1.5 text-xs text-danger">{error}</p>}
     </div>
   );
 }
