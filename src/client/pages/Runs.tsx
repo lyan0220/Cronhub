@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
-import { fmtTime, get, post } from "../api";
+import { get, post } from "../api";
+import { fmtTime } from "../utils/time";
 import { useToast } from "../components/Toast";
 import type { Job, Run } from "../types";
 

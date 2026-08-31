@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { fmtTime, get } from "../api";
+import { get } from "../api";
+import { fmtTime } from "../utils/time";
 import type { Run, Stats } from "../types";
 
 function Card({ label, value, danger }: { label: string; value: number | string; danger?: boolean }) {

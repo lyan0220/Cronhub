@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { del, fmtTime, get, post, put } from "../api";
+import { del, get, post, put } from "../api";
+import { fmtTime } from "../utils/time";
 import { useToast } from "../components/Toast";
 import type { Account, Job, Schedule } from "../types";
 
