@@ -1,1 +1,113 @@
 @import "tailwindcss";
+
+/* 深色模式改为 class 驱动。缺这一行，.dark 类不生效，手动切换无效。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --surface: #fafafa;
+  --panel: #ffffff;
+  --panel-hover: #f5f5f5;
+  --border: #e5e5e5;
+  --border-strong: #d4d4d4;
+  --fg: #0a0a0a;
+  --fg-muted: #737373;
+  --fg-subtle: #a3a3a3;
+  --accent: #4f46e5;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+}
+
+.dark {
+  --surface: #09090b;
+  --panel: #131316;
+  --panel-hover: #1c1c21;
+  --border: #26262b;
+  --border-strong: #3f3f46;
+  --fg: #fafafa;
+  --fg-muted: #8f8f99;
+  --fg-subtle: #62626b;
+  --accent: #818cf8;
+  --success: #34d399;
+  --success-soft: #052e23;
+  --danger: #f87171;
+  --danger-soft: #2c1214;
+  --warn: #fbbf24;
+  --warn-soft: #2b1d05;
+}
+
+/* 必须是 @theme inline。普通 @theme 会在构建期把 var() 求值烧死，.dark 覆盖将失效。 */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-panel-hover: var(--panel-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+
+  --animate-in-pop: in-pop var(--duration-base) var(--ease-smooth);
+  --animate-in-right: in-right var(--duration-slow) var(--ease-smooth);
+  --animate-in-left: in-left var(--duration-slow) var(--ease-smooth);
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-smooth);
+  --animate-shake: shake 160ms ease-in-out;
+  --animate-pulse-soft: pulse-soft 1.5s ease-in-out infinite;
+}
+
+@keyframes in-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes in-right {
+  from { transform: translateX(100%); }
+  to   { transform: none; }
+}
+@keyframes in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+@layer base {
+  body { @apply bg-surface text-fg; }
+  /* 数字不跳动 */
+  .tnum { font-variant-numeric: tabular-nums; }
+  /* 原生 dialog 的遮罩 */
+  dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

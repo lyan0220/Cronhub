@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Actions Cronhub</title>
+    <script>
+      // 必须内联在 head 内、React 挂载前执行。否则深色模式用户每次刷新都先闪一帧白屏。
+      try {
+        var t = localStorage.getItem("theme") || "system";
+        if (t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
