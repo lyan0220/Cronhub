@@ -126,7 +126,7 @@ export default function Jobs() {
         title="定时任务"
         description="按间隔或 cron 触发 GitHub Actions。"
         action={
-          <Button icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
+          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
             新建任务
           </Button>
         }
@@ -142,7 +142,7 @@ export default function Jobs() {
           title="还没有任务"
           description="创建第一个任务，让 GitHub Actions 按时自己跑起来。"
           action={
-            <Button icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
               新建任务
             </Button>
           }

@@ -176,7 +176,7 @@ export default function JobForm({
         </Group>
 
         <div className="sticky bottom-0 -mx-5 flex gap-2 border-t border-border bg-panel px-5 py-3">
-          <Button type="submit" loading={busy} disabled={form.account_id === 0}>保存</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={form.account_id === 0}>保存</Button>
           <Button type="button" variant="secondary" onClick={onClose}>取消</Button>
         </div>
       </form>
