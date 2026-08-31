@@ -7,7 +7,9 @@
     <script>
       // 必须内联在 head 内、React 挂载前执行。否则深色模式用户每次刷新都先闪一帧白屏。
       try {
-        var t = localStorage.getItem("theme") || "system";
+        // 白名单归一化，与 theme.ts 的 readThemePref 保持一致；否则脏存储值会闪一帧浅色。
+        var t = localStorage.getItem("theme");
+        if (t !== "light" && t !== "dark") t = "system";
         if (t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches)) {
           document.documentElement.classList.add("dark");
         }
