@@ -39,7 +39,14 @@ export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
     const onDown = (e: MouseEvent) => {
       if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(true); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // preventDefault 挡掉浏览器由这次 keydown 派生的 close request：
+      // Menu 放进 Dialog / Drawer 里时，一次 Esc 否则会既关菜单又关外层弹层
+      // （Drawer 脏态下还会顺带弹一次确认）。
+      e.preventDefault();
+      close(true);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -100,7 +107,10 @@ export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
               key={it.label}
               role="menuitem"
               type="button"
-              onClick={() => { setOpen(false); it.onSelect(); }}
+              // 先把焦点还给触发按钮再执行回调。菜单项自己会被卸载，不还焦点就掉到 body；
+              // Esc 路径专门做了归还，Enter 选中却没做，两条键盘路径本来不一致。
+              // 顺序不能反：onSelect 可能打开抽屉并抢走焦点，那时归还会把它抢回来。
+              onClick={() => { setOpen(false); trigger.current?.focus(); it.onSelect(); }}
               className={cx(
                 "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm",
                 "transition-colors duration-fast hover:bg-panel-hover",

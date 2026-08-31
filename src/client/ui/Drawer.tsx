@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useConfirm } from "./ConfirmDialog";
 import { X } from "./icons";
 import { cx } from "./styles";
@@ -42,6 +42,17 @@ export function Drawer({ open, onClose, title, dirty = false, children }: Props)
     el.addEventListener("cancel", onCancel);
     return () => el.removeEventListener("cancel", onCancel);
   }, [attemptClose]);
+
+  // 卸载兜底。消费者普遍写成条件挂载（`{form && <JobForm open … />}`），于是 <dialog>
+  // 带着 open 属性被 React 直接移除，close() 从未执行——而浏览器只在 close() 时把焦点
+  // 还给 showModal() 之前的元素，节点被移除不触发归还，焦点会掉到 <body>，
+  // Tab 得从文档顶部重新开始。
+  // 必须是 useLayoutEffect：被删子树的 passive cleanup 在 DOM 移除之后才跑，
+  // 那时元素已脱离文档，close() 起不到归还焦点的作用。
+  useLayoutEffect(() => () => {
+    const el = ref.current;
+    if (el?.open) el.close();
+  }, []);
 
   return (
     <dialog

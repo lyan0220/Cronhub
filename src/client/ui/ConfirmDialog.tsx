@@ -20,6 +20,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const resolver = useRef<Resolver | null>(null);
 
   const confirm = useCallback((o: ConfirmOptions) => {
+    // 上一次调用还没 settle 就又调进来时，必须先把旧 Promise 兑现掉。
+    // 否则 resolver.current 被覆盖，旧 Promise 永久 pending，await 它的那条
+    // 执行流（比如 Drawer 的 attemptClose）就永久停住了。
+    // 可达路径：按住 Esc 让 keydown 自动重复，在同一帧内触发两次 cancel。
+    resolver.current?.(false);
     setOpts(o);
     return new Promise<boolean>(resolve => { resolver.current = resolve; });
   }, []);
