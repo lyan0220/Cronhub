@@ -1,5 +1,5 @@
-import { Badge, Button, Menu, Switch, type MenuItem } from "../../ui";
-import { Pencil, Play, Trash2 } from "../../ui/icons";
+import { Badge, Switch, iconAction, iconActionDanger } from "../../ui";
+import { LoaderCircle, Pencil, Play, Trash2 } from "../../ui/icons";
 import { cx } from "../../ui/styles";
 import type { Job, Run } from "../../types";
 import { fmtShort, relativeTime } from "../../utils/time";
@@ -22,11 +22,6 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
   const schedule = describeLocal(parseSchedule(job.schedule_json));
   const line = lastLine(job, lastRun);
   const LineIcon = line && LINE_ICON[line.tone];
-
-  const items: MenuItem[] = [
-    { label: "编辑", icon: <Pencil className="size-3.5" />, onSelect: onEdit },
-    { label: "删除", icon: <Trash2 className="size-3.5" />, onSelect: onRemove, tone: "danger" },
-  ];
 
   return (
     <tr className={cx(
@@ -68,11 +63,21 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
       <td className="p-3">
         <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
       </td>
-      <td className="py-2.5 pl-3 pr-4">
+      <td className="p-3">
+        {/* 触发/编辑/删除三个动作统一为图标按钮，与卡片视图同一套 */}
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" loading={triggering} onClick={onTrigger}
-            icon={<Play className="size-3.5" />}>触发</Button>
-          <Menu label={`「${job.name}」更多操作`} items={items} />
+          <button type="button" className={iconAction} aria-label="立即触发" title="立即触发"
+            disabled={triggering} onClick={onTrigger}>
+            {triggering
+              ? <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              : <Play className="size-4" aria-hidden />}
+          </button>
+          <button type="button" className={iconAction} aria-label="编辑" title="编辑" onClick={onEdit}>
+            <Pencil className="size-4" aria-hidden />
+          </button>
+          <button type="button" className={iconActionDanger} aria-label="删除" title="删除" onClick={onRemove}>
+            <Trash2 className="size-4" aria-hidden />
+          </button>
         </div>
       </td>
     </tr>

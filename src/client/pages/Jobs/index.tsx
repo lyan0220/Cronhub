@@ -191,8 +191,8 @@ export default function Jobs() {
 
       {list === null ? (
         view === "card" ? (
-          <div className="grid gap-3 lg:grid-cols-2" aria-busy="true">
-            {[0, 1, 2, 3].map(i => <SkeletonCard key={i} />)}
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(340px,1fr))]" aria-busy="true">
+            {[0, 1, 2, 3, 4, 5].map(i => <SkeletonCard key={i} />)}
           </div>
         ) : (
           <TableShell><SkeletonRows /></TableShell>
@@ -214,7 +214,9 @@ export default function Jobs() {
           title="该账号下暂无任务"
           description="换个账号试试，或为它新建一个任务。"
         />
-      ) : view === "card" ? (        <div className="grid gap-3 lg:grid-cols-2">
+      ) : view === "card" ? (
+        // auto-fill：列数跟着可用宽度走，宽屏一行多卡、卡片永不过分拉长
+        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(340px,1fr))]">
           {filtered.map(j => <JobCard key={j.id} {...rowProps(j)} />)}
         </div>
       ) : (
@@ -253,7 +255,8 @@ function TableShell({ children }: { children: React.ReactNode }) {
             <th className={TH}>调度</th>
             <th className={TH}>上次运行</th>
             <th className={TH}>启用</th>
-            <th className={cx(TH, "pl-3")}>操作</th>
+            {/* 与行内三个图标按钮同一原点，标题正压在按钮簇上 */}
+            <th className={TH}>操作</th>
           </tr>
         </thead>
         <tbody>{children}</tbody>

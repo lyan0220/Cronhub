@@ -1,4 +1,4 @@
-export { cx, controlBase, controlError, focusRing } from "./styles";
+export { cx, controlBase, controlError, focusRing, iconAction, iconActionDanger } from "./styles";
 export { Button } from "./Button";
 export { Input } from "./Input";
 export { Textarea } from "./Textarea";

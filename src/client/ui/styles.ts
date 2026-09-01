@@ -29,6 +29,29 @@ export const controlBase = cx(
 export const controlError = "border-danger focus:border-danger focus:ring-danger/25";
 
 /**
+ * 无文字的动作图标按钮（播放/编辑/删除这类行内操作），size-8 与 sm 按钮同高。
+ * 危险操作（删除）用 iconActionDanger：hover 走 danger 文字 + 半透明 danger 底。
+ * 注意变体必须从不含 hover 色的基类分叉，不能用 cx 在 iconAction 上再叠
+ * hover:* 去覆盖 —— 同优先级类的胜负取决于 Tailwind 输出顺序，不可预期。
+ */
+const iconActionBase = cx(
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-md",
+  "transition-colors duration-fast ease-smooth",
+  "disabled:cursor-not-allowed disabled:opacity-50",
+  focusRing,
+);
+
+export const iconAction = cx(
+  iconActionBase,
+  "text-fg-muted hover:bg-panel-hover hover:text-fg",
+);
+
+export const iconActionDanger = cx(
+  iconActionBase,
+  "text-fg-muted hover:bg-danger/20 hover:text-danger",
+);
+
+/**
  * bare 控件：去掉边框/底色/圆角的「裸」控件，用于嵌入组合控件（如调度编辑器的
  * 连体输入组）——外层容器自己负责边框与 focus-within 强调。不从 controlBase 用
  * cx 叠加去覆盖：本项目没装 tailwind-merge，同属性类叠加的胜负取决于 CSS 输出

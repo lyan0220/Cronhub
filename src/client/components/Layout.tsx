@@ -104,7 +104,7 @@ export default function Layout() {
       <span className="grid size-7 shrink-0 place-items-center rounded-md bg-fg text-[11px] font-bold text-surface">
         AC
       </span>
-      <span className="truncate text-sm font-semibold tracking-tight text-fg">Actions Cronhub</span>
+      <span className="truncate text-base font-semibold tracking-tight text-fg">Actions Cronhub</span>
     </div>
   );
 
@@ -130,7 +130,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-surface text-fg">
       {/* 桌面固定侧栏（≥ lg）。overflow-y-auto：横屏手机等极矮视口下 footer 不至于被裁掉且无法滚动。 */}
-      <aside className="fixed inset-y-0 left-0 hidden w-56 flex-col overflow-y-auto border-r border-border bg-panel p-4 lg:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col overflow-y-auto border-r border-border bg-panel p-4 lg:flex">
         {brand}
         <div className="mt-6"><NavItems stats={stats} /></div>
         {footer}
@@ -159,7 +159,7 @@ export default function Layout() {
         </div>
       </dialog>
 
-      <div className="lg:pl-56">
+      <div className="lg:pl-64">
         {/* 窄屏顶部条 */}
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-panel/85 px-4 py-3 backdrop-blur lg:hidden">
           <button type="button" onClick={() => setOpen(true)} aria-label="打开导航" aria-expanded={open}
@@ -169,7 +169,10 @@ export default function Layout() {
           {brand}
         </header>
 
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {/* 内容区在侧栏以外的剩余空间里居中（上限 1440px）：完全不限宽会拉伸到
+            交互难受，靠左又会右重左轻；居中后 1920 宽下侧栏与内容的间距收敛到
+            约 112px 且左右对称，视口再大也是对称留白，观感是「刻意留白」而不是割裂。 */}
+        <main className="mx-auto max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>

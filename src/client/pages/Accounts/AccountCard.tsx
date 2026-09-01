@@ -2,7 +2,7 @@ import { useState } from "react";
 import { errText, put } from "../../api";
 import { useToast } from "../../components/Toast";
 import type { Account } from "../../types";
-import { Badge, Button, Card, Field, Input, cx } from "../../ui";
+import { Badge, Button, Card, Field, Input, cx, iconAction, iconActionDanger } from "../../ui";
 import {
   CircleAlert, CircleCheck, CircleX, KeyRound, Pencil, RefreshCw, Trash2,
 } from "../../ui/icons";
@@ -55,13 +55,18 @@ export default function AccountCard(p: Props) {
         <div className="text-fg-subtle">上次验证：{fmtTime(a.last_verified_at)}</div>
       </div>
 
-      <div className="mt-auto flex flex-wrap gap-2">
+      {/* 与任务卡片同一套动作排布：主操作文字按钮居左，编辑/删除图标按钮居右 */}
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
         <Button size="sm" variant="secondary" loading={p.verifying} onClick={p.onVerify}
           icon={<RefreshCw className="size-3.5" />}>重新验证</Button>
-        <Button size="sm" variant="ghost" onClick={p.onEdit}
-          icon={<Pencil className="size-3.5" />}>编辑</Button>
-        <Button size="sm" variant="danger" onClick={p.onRemove}
-          icon={<Trash2 className="size-3.5" />}>删除</Button>
+        <div className="flex items-center gap-1">
+          <button type="button" className={iconAction} aria-label="编辑" title="编辑" onClick={p.onEdit}>
+            <Pencil className="size-4" aria-hidden />
+          </button>
+          <button type="button" className={iconActionDanger} aria-label="删除" title="删除" onClick={p.onRemove}>
+            <Trash2 className="size-4" aria-hidden />
+          </button>
+        </div>
       </div>
     </Card>
   );

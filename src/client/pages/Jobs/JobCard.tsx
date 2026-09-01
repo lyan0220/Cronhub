@@ -1,5 +1,5 @@
-import { Badge, Button, Card, Menu, Switch, type MenuItem } from "../../ui";
-import { ArrowRight, GitBranch, Pencil, Play, Timer, Trash2 } from "../../ui/icons";
+import { Badge, Card, Switch, iconAction, iconActionDanger } from "../../ui";
+import { ArrowRight, GitBranch, LoaderCircle, Pencil, Play, Timer, Trash2 } from "../../ui/icons";
 import type { Job, Run } from "../../types";
 import { fmtShort, relativeTime } from "../../utils/time";
 import { describeLocal, parseSchedule } from "./schedule";
@@ -16,22 +16,17 @@ type Props = {
   onRemove: () => void;
 };
 
-/** 卡片视图：窄卡片进网格，比通栏行卡片放得下更多列 */
+/** 卡片视图：窄卡片进自适应网格，比通栏行卡片放得下更多列 */
 export default function JobCard({ job, lastRun, triggering, onToggle, onTrigger, onEdit, onRemove }: Props) {
   const schedule = describeLocal(parseSchedule(job.schedule_json));
   const line = lastLine(job, lastRun);
   const LineIcon = line && LINE_ICON[line.tone];
 
-  const items: MenuItem[] = [
-    { label: "编辑", icon: <Pencil className="size-3.5" />, onSelect: onEdit },
-    { label: "删除", icon: <Trash2 className="size-3.5" />, onSelect: onRemove, tone: "danger" },
-  ];
-
   return (
-    <Card interactive className="flex flex-col gap-2.5 p-4">
+    // 卡片内有按钮，整卡 hover 只提边框不做底色变化，避免噪音
+    <Card className="flex flex-col gap-2.5 p-4 transition-colors duration-fast ease-smooth hover:border-border-strong">
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate font-medium text-fg">{job.name}</span>
-        <Menu label={`「${job.name}」更多操作`} items={items} />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
@@ -67,8 +62,21 @@ export default function JobCard({ job, lastRun, triggering, onToggle, onTrigger,
           <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
           <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
         </div>
-        <Button size="sm" variant="ghost" loading={triggering} onClick={onTrigger}
-          icon={<Play className="size-3.5" />}>立即触发</Button>
+        {/* 触发/编辑/删除三个动作统一为图标按钮，删除 hover 红色提醒 */}
+        <div className="flex items-center gap-1">
+          <button type="button" className={iconAction} aria-label="立即触发" title="立即触发"
+            disabled={triggering} onClick={onTrigger}>
+            {triggering
+              ? <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              : <Play className="size-4" aria-hidden />}
+          </button>
+          <button type="button" className={iconAction} aria-label="编辑" title="编辑" onClick={onEdit}>
+            <Pencil className="size-4" aria-hidden />
+          </button>
+          <button type="button" className={iconActionDanger} aria-label="删除" title="删除" onClick={onRemove}>
+            <Trash2 className="size-4" aria-hidden />
+          </button>
+        </div>
       </div>
     </Card>
   );
