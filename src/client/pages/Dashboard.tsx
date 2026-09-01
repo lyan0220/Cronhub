@@ -6,6 +6,7 @@ import type { Run, Stats } from "../types";
 import { Card, EmptyState, Skeleton, SkeletonCard, Button, cx } from "../ui";
 import { ArrowRight, CircleAlert, CircleCheck, CircleX, Clock, Inbox, Play, RefreshCw, Timer, Users } from "../ui/icons";
 import { fmtShort, relativeTime } from "../utils/time";
+import { useAlive } from "../utils/useAlive";
 
 type StatCard = {
   key: keyof Stats;
@@ -27,16 +28,19 @@ export default function Dashboard() {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [statsError, setStatsError] = useState(false);
   const [runsError, setRunsError] = useState(false);
+  const alive = useAlive();
 
   // 加载失败不能落回 null——null 被渲染成骨架屏，网络错误会表现为"永远在加载"。
   // 错误是独立状态，骨架屏只属于"还没拿到结果"。
   function load() {
     setStatsError(false);
     setRunsError(false);
-    get<Stats>("/api/stats").then(setStats).catch(() => setStatsError(true));
+    get<Stats>("/api/stats")
+      .then(s => { if (alive.current) setStats(s); })
+      .catch(() => { if (alive.current) setStatsError(true); });
     get<{ rows: Run[] }>("/api/runs?page=1")
-      .then(d => setRuns(d.rows.slice(0, 10)))
-      .catch(() => setRunsError(true));
+      .then(d => { if (alive.current) setRuns(d.rows.slice(0, 10)); })
+      .catch(() => { if (alive.current) setRunsError(true); });
   }
 
   useEffect(load, []);

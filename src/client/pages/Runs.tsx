@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { get, post } from "../api";
+import { get, errText, post } from "../api";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import type { Job, Run } from "../types";
@@ -56,7 +56,7 @@ export default function Runs() {
     });
     get<{ total: number; rows: Run[] }>(`/api/runs?${q}`)
       .then(d => { if (!alive) return; setTotal(d.total); setRows(d.rows); })
-      .catch(e => { if (!alive) return; setRows([]); toast((e as Error).message, "err"); });
+      .catch(e => { if (!alive) return; setRows([]); toast(errText(e), "err"); });
     return () => { alive = false; };
   }, [jobId, status, page, nonce]);
 
@@ -74,7 +74,7 @@ export default function Runs() {
       patch({ page: "" });
       setNonce(n => n + 1);
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast(errText(e), "err");
     }
   }
 

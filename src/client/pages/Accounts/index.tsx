@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { del, get, post } from "../../api";
+import { del, errText, get, post } from "../../api";
 import PageHeader from "../../components/PageHeader";
 import { useToast } from "../../components/Toast";
 import type { Account } from "../../types";
 import { Button, EmptyState, Field, Input, SkeletonCard, useConfirm } from "../../ui";
 import { KeyRound, Plus, X } from "../../ui/icons";
 import AccountCard from "./AccountCard";
+import { useAlive } from "../../utils/useAlive";
 
 export default function Accounts() {
   const toast = useToast();
@@ -18,11 +19,13 @@ export default function Accounts() {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const alive = useAlive();
 
   async function load() {
-    setList(await get<Account[]>("/api/accounts"));
+    const list = await get<Account[]>("/api/accounts");
+    if (alive.current) setList(list);
   }
-  useEffect(() => { load().catch(e => toast((e as Error).message, "err")); }, []);
+  useEffect(() => { load().catch(e => toast(errText(e), "err")); }, []);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +36,7 @@ export default function Accounts() {
       setAdding(false); setName(""); setToken("");
       await load();
     } catch (err) {
-      toast((err as Error).message, "err");
+      toast(errText(err), "err");
     } finally {
       setBusy(false);
     }
@@ -45,7 +48,7 @@ export default function Accounts() {
       await post(`/api/accounts/${a.id}/verify`);
       toast(`验证通过：${a.name}`);
     } catch (err) {
-      toast((err as Error).message, "err");
+      toast(errText(err), "err");
     } finally {
       setVerifyingId(null);
       // 成败都重拉：验证失败时服务端会把 status 置为 invalid，卡片徽章要跟着变。
@@ -66,7 +69,7 @@ export default function Accounts() {
       toast("已删除");
       await load();
     } catch (err) {
-      toast((err as Error).message, "err");
+      toast(errText(err), "err");
     }
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { get } from "../../api";
+import { errText, get } from "../../api";
 import type { Schedule } from "../../types";
 import { Input, Segmented, Select, cx } from "../../ui";
 import { fmtTime, relativeTime } from "../../utils/time";
@@ -41,8 +41,8 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
         onError(null);
       } catch (e) {
         setPreview([]);
-        setErr((e as Error).message);
-        onError((e as Error).message);
+        setErr(errText(e));
+        onError(errText(e));
       }
     }, 400); // 防抖
     return () => clearTimeout(t);

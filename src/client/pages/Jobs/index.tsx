@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { del, get, post, put } from "../../api";
+import { del, errText, get, post, put } from "../../api";
 import PageHeader from "../../components/PageHeader";
 import { useToast } from "../../components/Toast";
 import type { Account, Job, Run } from "../../types";
@@ -8,6 +8,7 @@ import { Inbox, Plus } from "../../ui/icons";
 import JobForm, { EMPTY_FORM, type JobFormData } from "./JobForm";
 import JobRow from "./JobRow";
 import { parseSchedule } from "./schedule";
+import { useAlive } from "../../utils/useAlive";
 
 export default function Jobs() {
   const toast = useToast();
@@ -19,12 +20,14 @@ export default function Jobs() {
   const [snapshot, setSnapshot] = useState<JobFormData | null>(null);
   const [busy, setBusy] = useState(false);
   const [triggering, setTriggering] = useState<number | null>(null);
+  const alive = useAlive();
 
   async function load() {
     const [jobs, runs] = await Promise.all([
       get<Job[]>("/api/jobs"),
       get<{ rows: Run[] }>("/api/runs?page=1"),
     ]);
+    if (!alive.current) return;
     // runs 按 triggered_at DESC，首次出现即该任务的最新一条
     const latest: Record<number, Run> = {};
     for (const r of runs.rows) if (!latest[r.job_id]) latest[r.job_id] = r;
@@ -33,8 +36,8 @@ export default function Jobs() {
   }
 
   useEffect(() => {
-    load().catch(e => toast((e as Error).message, "err"));
-    get<Account[]>("/api/accounts").then(setAccounts).catch(() => {});
+    load().catch(e => toast(errText(e), "err"));
+    get<Account[]>("/api/accounts").then(a => { if (alive.current) setAccounts(a); }).catch(() => {});
   }, []);
 
   function open(data: JobFormData) {
@@ -66,7 +69,7 @@ export default function Jobs() {
       setSnapshot(null);
       await load();
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast(errText(e), "err");
     } finally {
       setBusy(false);
     }
@@ -82,7 +85,7 @@ export default function Jobs() {
       patch(x => ({ ...x, enabled: d.enabled, next_run_at: d.next_run_at }));
     } catch (e) {
       patch(x => ({ ...x, enabled: j.enabled })); // 回滚到点击前的值
-      toast((e as Error).message, "err");
+      toast(errText(e), "err");
     }
   }
 
@@ -92,7 +95,7 @@ export default function Jobs() {
       await post(`/api/jobs/${j.id}/trigger`);
       toast(`已触发：${j.name}`);
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast(errText(e), "err");
     } finally {
       setTriggering(null);
       // 成败都重拉：服务端两种情况都写了 runs 记录，
@@ -114,7 +117,7 @@ export default function Jobs() {
       toast("已删除");
       await load();
     } catch (e) {
-      toast((e as Error).message, "err");
+      toast(errText(e), "err");
     }
   }
 

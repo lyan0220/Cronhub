@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { put } from "../../api";
+import { errText, put } from "../../api";
 import { useToast } from "../../components/Toast";
 import type { Account } from "../../types";
 import { Badge, Button, Card, Field, Input, cx } from "../../ui";
@@ -84,7 +84,7 @@ function EditForm({ account, onCancel, onSaved }:
       toast("账号已更新");
       onSaved();
     } catch (err) {
-      toast((err as Error).message, "err");
+      toast(errText(err), "err");
     } finally {
       setBusy(false);
     }

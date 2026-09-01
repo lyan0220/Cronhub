@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { post } from "../api";
+import { errText, post } from "../api";
 import ThemeToggle from "../components/ThemeToggle";
 import { Button, Field, Input } from "../ui";
 import { KeyRound } from "../ui/icons";
@@ -18,7 +18,7 @@ export default function Login() {
       await post("/api/auth/login", { password });
       location.href = "/";
     } catch (err) {
-      setError((err as Error).message);
+      setError(errText(err));
       setShaking(true);
     } finally {
       setBusy(false);
