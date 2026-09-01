@@ -6,6 +6,9 @@
 /* 单色系统：无彩色强调 token。前景（--fg）即强调色——主按钮、链接、激活态、
    焦点环全部走 fg 系；success/danger/warn 仅保留语义用途（状态、危险操作）。 */
 :root {
+  /* 原生控件（select 弹出的选项列表、滚动条等）跟随这里声明的配色方案渲染。
+     缺了它，暗色模式下 select 的弹层仍是白底，而选项文字继承了控件的白色 —— 白字白底。 */
+  color-scheme: light;
   --surface: #fafafa;
   --panel: #ffffff;
   --panel-hover: #f5f5f5;
@@ -26,6 +29,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --surface: #09090b;
   --panel: #131316;
   --panel-hover: #1c1c21;
@@ -109,6 +113,10 @@
   .tnum { font-variant-numeric: tabular-nums; }
   /* 原生 dialog 的遮罩 */
   dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+  /* 下拉弹层兜底：部分环境（Windows 的内嵌 Chromium 视图等）原生弹层不跟随
+     color-scheme，暗色下仍白底，而选项文字继承控件的 --fg —— 白字白底。
+     显式给 option 上主题色，Chromium 会把它画进弹层的选项行。 */
+  select option { background-color: var(--panel); color: var(--fg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
