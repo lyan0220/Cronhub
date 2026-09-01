@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { get } from "../../api";
 import type { Schedule } from "../../types";
-import { Input, Segmented, Select } from "../../ui";
+import { Input, Segmented, Select, cx } from "../../ui";
 import { fmtTime, relativeTime } from "../../utils/time";
 import { EMPTY_SCHEDULE } from "./schedule";
 
@@ -16,6 +16,14 @@ const TABS: { type: Schedule["type"]; label: string }[] = [
   { type: "interval", label: "间隔" },
   { type: "cron", label: "cron 表达式" },
 ];
+
+// number 输入的原生步进箭头既占宽度又与整体风格不符，隐藏之（键盘上下键仍可步进）
+const noSpin = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+/** 连体输入组内的竖分隔线：一根发丝线把几个裸控件接成「一个」控件 */
+function Divider() {
+  return <div aria-hidden className="w-px shrink-0 bg-border" />;
+}
 
 export default function ScheduleEditor({ value, onChange, onError }: Props) {
   const [preview, setPreview] = useState<{ ms: number; text: string }[]>([]);
@@ -43,7 +51,7 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
   }, [key]);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
+    <div>
       <div className="mb-3">
         <Segmented
           label="调度类型"
@@ -56,13 +64,20 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
       </div>
 
       {value.type === "cron" ? (
-        <Input value={value.expr ?? ""} invalid={!!err}
+        <Input aria-label="cron 表达式" className="font-mono" value={value.expr ?? ""} invalid={!!err}
           placeholder="分 时 日 月 周（UTC），如 30 3 * * *"
           onChange={e => onChange({ ...value, expr: e.target.value })} />
       ) : (
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div className="w-32 shrink-0">
-            <Select value={value.mode ?? "fixed"}
+        // 连体输入组：外层只画一圈边框和一份 focus-within 强调，内部是裸控件 +
+        // 发丝分隔线。三个独立描边控件并排的割裂感来自「三圈边框」，合并后视觉上
+        // 是一个控件。
+        <div className={cx(
+          "flex items-stretch overflow-hidden rounded-lg border border-border bg-panel",
+          "transition-colors duration-fast ease-smooth",
+          "focus-within:border-fg/60 focus-within:ring-2 focus-within:ring-fg/12",
+        )}>
+          <div className="w-28 shrink-0">
+            <Select bare aria-label="间隔模式" value={value.mode ?? "fixed"}
               onChange={e => onChange({
                 ...value,
                 mode: e.target.value as "fixed" | "random",
@@ -72,26 +87,32 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
               <option value="random">随机间隔</option>
             </Select>
           </div>
+          <Divider />
           {value.mode === "random" ? (
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="w-16 shrink-0">
-                <Input type="number" min={1} value={value.min ?? 30}
+            <>
+              {/* 数字框 flex-1：宽度跟着行走，4 位数也不会被截断 */}
+              <div className="min-w-0 flex-1">
+                <Input bare type="number" min={1} aria-label="最小间隔" className={cx("text-center", noSpin)}
+                  value={value.min ?? 30}
                   onChange={e => onChange({ ...value, min: Number(e.target.value) })} />
               </div>
-              <span className="shrink-0 text-fg-muted">~</span>
-              <div className="w-16 shrink-0">
-                <Input type="number" min={1} value={value.max ?? 90}
+              <span aria-hidden className="shrink-0 self-center px-0.5 text-fg-subtle">~</span>
+              <div className="min-w-0 flex-1">
+                <Input bare type="number" min={1} aria-label="最大间隔" className={cx("text-center", noSpin)}
+                  value={value.max ?? 90}
                   onChange={e => onChange({ ...value, max: Number(e.target.value) })} />
               </div>
-            </div>
+            </>
           ) : (
-            <div className="w-16 shrink-0">
-              <Input type="number" min={1} value={value.value ?? 45}
+            <div className="min-w-0 flex-1">
+              <Input bare type="number" min={1} aria-label="间隔数值" className={cx("text-center", noSpin)}
+                value={value.value ?? 45}
                 onChange={e => onChange({ ...value, value: Number(e.target.value) })} />
             </div>
           )}
-          <div className="w-20 shrink-0">
-            <Select value={value.unit ?? "m"}
+          <Divider />
+          <div className="w-24 shrink-0">
+            <Select bare aria-label="间隔单位" value={value.unit ?? "m"}
               onChange={e => onChange({ ...value, unit: e.target.value as "m" | "h" | "d" })}>
               <option value="m">分钟</option>
               <option value="h">小时</option>
@@ -101,15 +122,17 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
         </div>
       )}
 
-      <div className="mt-3 text-xs">
+      {/* 预览做成内嵌的「读数」面板：比控件低一级的面貌，把排布收拢成
+          「选择 → 输入 → 读数」三段 */}
+      <div className="mt-3 rounded-lg bg-surface px-3 py-2.5 text-xs">
         {err ? (
           <p role="alert" className="text-danger">{err}</p>
         ) : (
           <div className="text-fg-muted">
-            <p className="mb-1">未来触发时间</p>
-            <ul className="space-y-0.5">
+            <p className="mb-1.5">未来触发时间</p>
+            <ul className="space-y-1">
               {preview.map(p => (
-                <li key={p.ms} className="flex gap-2 font-mono tabular-nums">
+                <li key={p.ms} className="flex items-baseline justify-between gap-3 font-mono tabular-nums">
                   <span className="text-fg">{p.text}</span>
                   <span className="text-fg-subtle">{relativeTime(p.ms)}</span>
                 </li>

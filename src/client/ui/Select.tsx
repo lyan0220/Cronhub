@@ -1,14 +1,14 @@
 import type { SelectHTMLAttributes } from "react";
 import { ChevronDown } from "./icons";
-import { controlBase, controlError, cx } from "./styles";
+import { bareBase, controlBase, controlError, cx } from "./styles";
 
-type Props = SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean };
+type Props = SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean; bare?: boolean };
 
-export function Select({ invalid, className, children, ...rest }: Props) {
+export function Select({ invalid, bare, className, children, ...rest }: Props) {
   return (
     <div className="relative">
       <select aria-invalid={invalid || undefined}
-        className={cx(controlBase, "appearance-none pr-9", invalid && controlError, className)} {...rest}>
+        className={cx(bare ? bareBase : controlBase, "appearance-none pr-9", invalid && controlError, className)} {...rest}>
         {children}
       </select>
       <ChevronDown aria-hidden

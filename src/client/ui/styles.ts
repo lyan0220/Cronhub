@@ -21,9 +21,21 @@ export const controlBase = cx(
   "w-full rounded-lg border border-border bg-panel px-3 py-2 text-sm text-fg",
   "placeholder:text-fg-subtle",
   "transition-colors duration-fast ease-smooth",
-  // /8 的环几乎不可见，鼠标点进输入框没有任何反馈；border 也一并提到 strong 档
-  "focus:border-border-strong focus:outline-none focus:ring-2 focus:ring-fg/12",
+  // 聚焦强调主要靠边框（fg/60 在明暗下都是清晰可见的一档），环只做柔光陪衬
+  "focus:border-fg/60 focus:outline-none focus:ring-2 focus:ring-fg/12",
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
-export const controlError = "border-danger focus:border-danger focus:ring-danger/20";
+export const controlError = "border-danger focus:border-danger focus:ring-danger/25";
+
+/**
+ * bare 控件：去掉边框/底色/圆角的「裸」控件，用于嵌入组合控件（如调度编辑器的
+ * 连体输入组）——外层容器自己负责边框与 focus-within 强调。不从 controlBase 用
+ * cx 叠加去覆盖：本项目没装 tailwind-merge，同属性类叠加的胜负取决于 CSS 输出
+ * 顺序而非书写顺序，不可预期，所以单独声明一份。
+ */
+export const bareBase = cx(
+  "w-full px-3 py-2 text-sm text-fg placeholder:text-fg-subtle",
+  "transition-colors duration-fast ease-smooth focus:outline-none",
+  "disabled:cursor-not-allowed disabled:opacity-50",
+);
