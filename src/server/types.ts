@@ -1,8 +1,14 @@
+/** Workers Ratelimit binding（wrangler.jsonc ratelimits）。测试环境可不注入。 */
+type RateLimiterBinding = {
+  limit(key: { key: string }): Promise<{ success: boolean }>;
+};
+
 export type Env = {
   DB: D1Database;
   ASSETS: Fetcher;
   ADMIN_PASSWORD: string;
   TOKEN_ENC_KEY: string;
+  RATE_LIMITER?: RateLimiterBinding;
 };
 
 export type AccountRow = {

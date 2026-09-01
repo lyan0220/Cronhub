@@ -48,6 +48,34 @@ describe("triggerGithub", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain("inputs");
   });
+
+  it("5xx 瞬时失败重试一次后成功", async () => {
+    const fn = vi.fn()
+      .mockResolvedValueOnce(res(502))
+      .mockResolvedValueOnce(res(204));
+    const r = await triggerGithub("tok", wfCfg, fn as unknown as typeof fetch, 15_000, 1);
+    expect(r).toEqual({ ok: true, httpStatus: 204 });
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+  it("429 重试后仍失败，返回最后一次的结果", async () => {
+    const fn = vi.fn(async () => res(429, { message: "Too Many Requests" }));
+    const r = await triggerGithub("tok", wfCfg, fn as unknown as typeof fetch, 15_000, 1);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.httpStatus).toBe(429);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+  it("404 是明确失败，不重试", async () => {
+    const fn = vi.fn(async () => res(404, { message: "Not Found" }));
+    await triggerGithub("tok", wfCfg, fn as unknown as typeof fetch, 15_000, 1);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it("网络异常重试一次后成功", async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(res(204));
+    const r = await triggerGithub("tok", wfCfg, fn as unknown as typeof fetch, 15_000, 1);
+    expect(r).toEqual({ ok: true, httpStatus: 204 });
+  });
 });
 
 describe("verifyGithubToken", () => {
