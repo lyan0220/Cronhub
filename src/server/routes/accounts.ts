@@ -103,9 +103,12 @@ accountRoutes.put("/:id", async (c) => {
 
 accountRoutes.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  await c.env.DB.prepare("DELETE FROM runs WHERE job_id IN (SELECT id FROM jobs WHERE account_id=?)").bind(id).run();
-  await c.env.DB.prepare("DELETE FROM jobs WHERE account_id=?").bind(id).run();
-  await c.env.DB.prepare("DELETE FROM accounts WHERE id=?").bind(id).run();
+  // 三条删除必须是原子的：中间失败会留下「runs 删了、job 还在」之类的半删状态
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM runs WHERE job_id IN (SELECT id FROM jobs WHERE account_id=?)").bind(id),
+    c.env.DB.prepare("DELETE FROM jobs WHERE account_id=?").bind(id),
+    c.env.DB.prepare("DELETE FROM accounts WHERE id=?").bind(id),
+  ]);
   return c.json({ ok: true, data: null });
 });
 

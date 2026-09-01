@@ -48,6 +48,25 @@ describe("任务路由", () => {
     expect(res.status).toBe(201);
   });
 
+  it("带斜杠的分支名 / 标签 / 子目录 workflow 可以创建", async () => {
+    for (const ref of ["feature/x", "release/v1.0", "refs/heads/main", "a1b2c3d4"]) {
+      const res = await req("/", { method: "POST", body: JSON.stringify({ ...validBody, ref }) });
+      expect(res.status).toBe(201);
+    }
+    const sub = await req("/", {
+      method: "POST",
+      body: JSON.stringify({ ...validBody, workflow_id: "build/test.yml" }),
+    });
+    expect(sub.status).toBe(201);
+  });
+
+  it("明显非法的 ref 被拒绝", async () => {
+    for (const ref of ["-flag", ".hidden", "a..b", "x.lock", "trailing/", "空 格"]) {
+      const res = await req("/", { method: "POST", body: JSON.stringify({ ...validBody, ref }) });
+      expect(res.status).toBe(400);
+    }
+  });
+
   it("非法参数被拒绝", async () => {
     const cases = [
       { ...validBody, name: "" },
@@ -78,6 +97,17 @@ describe("任务路由", () => {
     await req("/1/toggle", { method: "POST" });
     expect(db.jobs[0].enabled).toBe(1);
     expect(db.jobs[0].next_run_at as number).toBeGreaterThan(Date.now());
+  });
+
+  it("schedule_json 损坏时启用不 500，沿用原 next_run_at", async () => {
+    await req("/", { method: "POST", body: JSON.stringify(validBody) });
+    await req("/1/toggle", { method: "POST" });
+    db.jobs[0].schedule_json = "{broken";
+    const before = db.jobs[0].next_run_at;
+    const res = await req("/1/toggle", { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(db.jobs[0].enabled).toBe(1);
+    expect(db.jobs[0].next_run_at).toBe(before);
   });
 
   it("手动触发调用 GitHub 并记录 manual", async () => {

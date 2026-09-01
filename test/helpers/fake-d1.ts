@@ -10,6 +10,13 @@ export class FakeD1 {
   prepare(sql: string) {
     return new FakeStmt(this, sql);
   }
+
+  // 真实 D1 的 batch 在一个事务里顺序执行；这里顺序执行即可满足断言需要
+  async batch(stmts: FakeStmt[]) {
+    const out: Array<{ meta: { changes: number; last_row_id: number } }> = [];
+    for (const s of stmts) out.push(await s.run());
+    return out;
+  }
 }
 
 class FakeStmt {

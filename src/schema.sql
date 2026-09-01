@@ -39,3 +39,7 @@ CREATE TABLE IF NOT EXISTS runs (
   error_message TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_runs_job ON runs(job_id, triggered_at DESC);
+-- 单列时间索引：不带 job_id 的运行记录列表（ORDER BY triggered_at DESC）和
+-- 调度器每 5 分钟一次的 90 天清理（DELETE WHERE triggered_at < ?）都走这里，
+-- 没有它就是全表扫描 + 排序，数据量上去后拖慢每次 Cron 唤醒。
+CREATE INDEX IF NOT EXISTS idx_runs_time ON runs(triggered_at);
