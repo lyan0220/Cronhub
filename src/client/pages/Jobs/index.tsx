@@ -242,6 +242,7 @@ export default function Jobs() {
 }
 
 const TH = "p-3 text-left text-xs font-medium text-fg-muted whitespace-nowrap";
+const TH_CENTER = "p-3 text-center text-xs font-medium text-fg-muted whitespace-nowrap";
 
 /** 列表视图的表格外壳（真实行与骨架行共用一套 thead） */
 function TableShell({ children }: { children: React.ReactNode }) {
@@ -255,8 +256,7 @@ function TableShell({ children }: { children: React.ReactNode }) {
             <th className={TH}>调度</th>
             <th className={TH}>上次运行</th>
             <th className={TH}>启用</th>
-            {/* 与行内三个图标按钮同一原点，标题正压在按钮簇上 */}
-            <th className={TH}>操作</th>
+            <th className={TH_CENTER}>操作</th>
           </tr>
         </thead>
         <tbody>{children}</tbody>
@@ -275,7 +275,7 @@ function SkeletonRows() {
           <td className="p-3"><Skeleton className="h-8 w-36" /></td>
           <td className="p-3"><Skeleton className="h-4 w-44" /></td>
           <td className="p-3"><Skeleton className="h-5 w-9 rounded-full" /></td>
-          <td className="p-3"><Skeleton className="h-4 w-16" /></td>
+          <td className="p-3"><div className="flex justify-center"><Skeleton className="h-4 w-16" /></div></td>
         </tr>
       ))}
     </>

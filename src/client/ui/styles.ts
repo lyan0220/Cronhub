@@ -30,9 +30,9 @@ export const controlError = "border-danger focus:border-danger focus:ring-danger
 
 /**
  * 无文字的动作图标按钮（播放/编辑/删除这类行内操作），size-8 与 sm 按钮同高。
- * 危险操作（删除）用 iconActionDanger：hover 走 danger 文字 + 半透明 danger 底。
- * 注意变体必须从不含 hover 色的基类分叉，不能用 cx 在 iconAction 上再叠
- * hover:* 去覆盖 —— 同优先级类的胜负取决于 Tailwind 输出顺序，不可预期。
+ * 按语义拆成四个变体（中性/成功/信息/危险），hover 底色与文字色成对出现。
+ * 变体必须从不含 hover 色的基类分叉，不能用 cx 在变体上再叠 hover:* 去覆盖
+ * —— 同优先级类的胜负取决于 Tailwind 输出顺序，不可预期。
  */
 const iconActionBase = cx(
   "inline-flex size-8 shrink-0 items-center justify-center rounded-md",
@@ -44,6 +44,16 @@ const iconActionBase = cx(
 export const iconAction = cx(
   iconActionBase,
   "text-fg-muted hover:bg-panel-hover hover:text-fg",
+);
+
+export const iconActionSuccess = cx(
+  iconActionBase,
+  "text-fg-muted hover:bg-success/15 hover:text-success",
+);
+
+export const iconActionInfo = cx(
+  iconActionBase,
+  "text-fg-muted hover:bg-info/15 hover:text-info",
 );
 
 export const iconActionDanger = cx(

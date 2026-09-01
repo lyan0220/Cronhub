@@ -22,6 +22,8 @@
   --fg-hover: #2e2e33;
   --success: #059669;
   --success-soft: #ecfdf5;
+  --info: #2563eb;
+  --info-soft: #eff6ff;
   --danger: #dc2626;
   --danger-soft: #fef2f2;
   --warn: #d97706;
@@ -41,6 +43,8 @@
   --fg-hover: #d4d4d8;
   --success: #34d399;
   --success-soft: #052e23;
+  --info: #60a5fa;
+  --info-soft: #172554;
   --danger: #f87171;
   --danger-soft: #2c1214;
   --warn: #fbbf24;
@@ -60,6 +64,8 @@
   --color-fg-hover: var(--fg-hover);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-warn: var(--warn);

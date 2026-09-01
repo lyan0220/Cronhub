@@ -1,4 +1,4 @@
-import { Badge, Card, Switch, iconAction, iconActionDanger } from "../../ui";
+import { Badge, Card, Switch, iconActionDanger, iconActionInfo, iconActionSuccess } from "../../ui";
 import { ArrowRight, GitBranch, LoaderCircle, Pencil, Play, Timer, Trash2 } from "../../ui/icons";
 import type { Job, Run } from "../../types";
 import { fmtShort, relativeTime } from "../../utils/time";
@@ -63,14 +63,15 @@ export default function JobCard({ job, lastRun, triggering, onToggle, onTrigger,
           <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
         </div>
         {/* 触发/编辑/删除三个动作统一为图标按钮，删除 hover 红色提醒 */}
+        {/* 触发/编辑/删除语义配色：绿/蓝/红，删除 hover 红色提醒 */}
         <div className="flex items-center gap-1">
-          <button type="button" className={iconAction} aria-label="立即触发" title="立即触发"
+          <button type="button" className={iconActionSuccess} aria-label="立即触发" title="立即触发"
             disabled={triggering} onClick={onTrigger}>
             {triggering
               ? <LoaderCircle className="size-4 animate-spin" aria-hidden />
               : <Play className="size-4" aria-hidden />}
           </button>
-          <button type="button" className={iconAction} aria-label="编辑" title="编辑" onClick={onEdit}>
+          <button type="button" className={iconActionInfo} aria-label="编辑" title="编辑" onClick={onEdit}>
             <Pencil className="size-4" aria-hidden />
           </button>
           <button type="button" className={iconActionDanger} aria-label="删除" title="删除" onClick={onRemove}>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { errText, put } from "../../api";
 import { useToast } from "../../components/Toast";
 import type { Account } from "../../types";
-import { Badge, Button, Card, Field, Input, cx, iconAction, iconActionDanger } from "../../ui";
+import { Badge, Button, Card, Field, Input, cx, iconActionDanger, iconActionInfo } from "../../ui";
 import {
   CircleAlert, CircleCheck, CircleX, KeyRound, Pencil, RefreshCw, Trash2,
 } from "../../ui/icons";
@@ -60,7 +60,7 @@ export default function AccountCard(p: Props) {
         <Button size="sm" variant="secondary" loading={p.verifying} onClick={p.onVerify}
           icon={<RefreshCw className="size-3.5" />}>重新验证</Button>
         <div className="flex items-center gap-1">
-          <button type="button" className={iconAction} aria-label="编辑" title="编辑" onClick={p.onEdit}>
+          <button type="button" className={iconActionInfo} aria-label="编辑" title="编辑" onClick={p.onEdit}>
             <Pencil className="size-4" aria-hidden />
           </button>
           <button type="button" className={iconActionDanger} aria-label="删除" title="删除" onClick={p.onRemove}>

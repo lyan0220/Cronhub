@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { get, post } from "../api";
 import type { Stats } from "../types";
+import { Menu } from "../ui";
 import {
-  LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, Users, X,
+  ChevronDown, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, UserRound, Users, X,
   type LucideIcon,
 } from "../ui/icons";
 import { cx, focusRing } from "../ui/styles";
+import PasswordDialog from "./PasswordDialog";
 import ThemeToggle from "./ThemeToggle";
 
 type Link = {
@@ -59,6 +61,7 @@ export default function Layout() {
   const loc = useLocation();
   const [stats, setStats] = useState<Stats | null>(null);
   const [open, setOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   const drawerRef = useRef<HTMLDialogElement>(null);
 
   // 路由切换就重新拉计数。alive 标记有两个作用：快速连切路由时先发后到的旧响应
@@ -110,20 +113,29 @@ export default function Layout() {
 
   const footer = (
     <div className="mt-auto flex flex-col gap-3 pt-4">
-      <div>
-        <ThemeToggle />
-      </div>
-      <div className="border-t border-border pt-3">
-        <button type="button" onClick={logout}
-          className={cx(
-            "flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-sm text-fg-muted",
-            "transition-colors duration-fast ease-smooth hover:bg-danger-soft hover:text-danger",
-            focusRing,
-          )}>
-          <span>退出登录</span>
-          <LogOut className="size-4 shrink-0" aria-hidden />
-        </button>
-      </div>
+      <ThemeToggle />
+      {/* 账户菜单：修改密码与退出登录收进一个 chip，弹出面板向上展开 */}
+      <Menu
+        label="账户"
+        dropUp
+        triggerClassName={cx(
+          "flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface px-2.5 py-2 text-left",
+          "transition-colors duration-fast ease-smooth hover:border-border-strong hover:bg-panel",
+        )}
+        trigger={
+          <>
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-fg text-surface">
+              <UserRound className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">管理员</span>
+            <ChevronDown className="size-4 shrink-0 text-fg-subtle" aria-hidden />
+          </>
+        }
+        items={[
+          { label: "修改密码", icon: <KeyRound className="size-3.5" />, onSelect: () => setPwOpen(true) },
+          { label: "退出登录", icon: <LogOut className="size-3.5" />, onSelect: () => void logout(), tone: "danger" },
+        ]}
+      />
     </div>
   );
 
@@ -176,6 +188,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {pwOpen && <PasswordDialog open onClose={() => setPwOpen(false)} />}
     </div>
   );
 }
