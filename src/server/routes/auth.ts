@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { createSessionToken, verifyPassword, verifySessionToken } from "../crypto";
+import { createSessionToken, verifyPassword, verifyPasswordHash, verifySessionToken } from "../crypto";
+import { getAuthState } from "../settings";
 import type { Env } from "../types";
 
 // 登录限速：只统计「失败」，按 IP 每 60 秒 5 次（配额在 wrangler.jsonc 的
@@ -17,7 +18,13 @@ authRoutes.post("/login", async (c) => {
     const body = await c.req.json<{ password?: unknown }>();
     if (typeof body.password === "string") password = body.password;
   } catch { /* 视为空密码 */ }
-  const ok = !!password && (await verifyPassword(password, c.env.ADMIN_PASSWORD));
+
+  // 密码来源：settings 里存过 PBKDF2 哈希就用它；否则回退到部署变量
+  // ADMIN_PASSWORD（初始状态）。环境变量仅在从未改过密码时有效。
+  const state = await getAuthState(c.env);
+  const ok = !!password && (state.hash
+    ? await verifyPasswordHash(state.hash, password)
+    : await verifyPassword(password, c.env.ADMIN_PASSWORD));
   if (!ok) {
     // 只在失败路径上消耗配额：成功登录永远不计数，管理员输错几次也不会被锁。
     // 第 RL_LIMIT+1 次失败拿到 429。
@@ -29,7 +36,7 @@ authRoutes.post("/login", async (c) => {
     }
     return c.json({ ok: false, error: "密码错误" }, 401);
   }
-  const token = await createSessionToken(c.env.ADMIN_PASSWORD);
+  const token = await createSessionToken(c.env.ADMIN_PASSWORD, state.epoch);
   setCookie(c, "session", token, {
     httpOnly: true,
     secure: true, // localhost 下现代浏览器同样接受 Secure Cookie
@@ -47,7 +54,8 @@ authRoutes.post("/logout", (c) => {
 
 authRoutes.get("/me", async (c) => {
   const token = getCookie(c, "session");
-  if (token && (await verifySessionToken(token, c.env.ADMIN_PASSWORD))) {
+  const { epoch } = await getAuthState(c.env);
+  if (token && (await verifySessionToken(token, c.env.ADMIN_PASSWORD, epoch))) {
     return c.json({ ok: true, data: null });
   }
   return c.json({ ok: false, error: "未登录" }, 401);

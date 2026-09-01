@@ -43,3 +43,11 @@ CREATE INDEX IF NOT EXISTS idx_runs_job ON runs(job_id, triggered_at DESC);
 -- 调度器每 5 分钟一次的 90 天清理（DELETE WHERE triggered_at < ?）都走这里，
 -- 没有它就是全表扫描 + 排序，数据量上去后拖慢每次 Cron 唤醒。
 CREATE INDEX IF NOT EXISTS idx_runs_time ON runs(triggered_at);
+
+-- 键值配置。目前存管理员密码的 PBKDF2 哈希（admin_password_hash）与会话纪元
+-- （session_epoch，改密 +1 使旧会话全部失效）。环境变量 ADMIN_PASSWORD 只在
+-- 没有这行配置时作为初始密码兜底。
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

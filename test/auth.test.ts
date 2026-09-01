@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import authRoutes from "../src/server/routes/auth";
+import { _resetAuthState } from "../src/server/settings";
 import { FakeD1 } from "./helpers/fake-d1";
 import type { Env } from "../src/server/types";
 
@@ -23,6 +24,8 @@ beforeEach(() => {
   db = new FakeD1();
   rl = fakeRl(5);
   env = { DB: db as unknown as D1Database, ASSETS: null as never, ADMIN_PASSWORD: "pw123", TOKEN_ENC_KEY: "k", RATE_LIMITER: rl as never };
+  // getAuthState 有模块级缓存，不清掉会污染下一个用例的新 env
+  _resetAuthState();
 });
 
 function req(path: string, init?: RequestInit, opts?: { env?: Env; ip?: string }) {
@@ -94,5 +97,21 @@ describe("auth 路由", () => {
     expect(ok.status).toBe(200);
     const bad = await req("/me", { headers: { Cookie: "session=123.abc" } });
     expect(bad.status).toBe(401);
+  });
+  it("改密后：D1 哈希生效登录、环境变量密码失效、旧 epoch 会话 401", async () => {
+    // 模拟改密路由的落库结果
+    const { hashPassword } = await import("../src/server/crypto");
+    db.settings.set("admin_password_hash", await hashPassword("brand-new-pw-1"));
+    db.settings.set("session_epoch", "1");
+    _resetAuthState();
+    // 环境变量密码不再可用
+    const oldLogin = await req("/login", { method: "POST", body: JSON.stringify({ password: "pw123" }) });
+    expect(oldLogin.status).toBe(401);
+    // 新密码可登录
+    const newLogin = await req("/login", { method: "POST", body: JSON.stringify({ password: "brand-new-pw-1" }) });
+    expect(newLogin.status).toBe(200);
+    // 旧 epoch（0）的令牌失效
+    const stale = await req("/me", { headers: { Cookie: "session=0.999999999999.AAAA" } });
+    expect(stale.status).toBe(401);
   });
 });

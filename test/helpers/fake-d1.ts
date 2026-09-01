@@ -5,6 +5,7 @@ export class FakeD1 {
   jobs: Row[] = [];
   accounts: Row[] = [];
   runs: Row[] = [];
+  settings = new Map<string, string>();
   lastRowId = 0;
 
   prepare(sql: string) {
@@ -178,6 +179,16 @@ class FakeStmt {
         .sort((a, b) => (b.triggered_at as number) - (a.triggered_at as number))
         .slice(offset, offset + limit);
       return rows.map((r) => ({ ...r, job_name: db.jobs.find((j) => j.id === r.job_id)?.name ?? null }));
+    }
+
+    // ---- settings ----
+    if (/SELECT value FROM settings WHERE key=\?/.test(s)) {
+      const v = db.settings.get(p[0] as unknown as string);
+      return v === undefined ? [] : [{ value: v }];
+    }
+    if (/INSERT OR REPLACE INTO settings/.test(s)) {
+      db.settings.set(p[0] as unknown as string, p[1] as unknown as string);
+      return 1;
     }
 
     // ---- stats ----

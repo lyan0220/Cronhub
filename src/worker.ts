@@ -4,6 +4,7 @@ import accountRoutes from "./server/routes/accounts";
 import jobRoutes from "./server/routes/jobs";
 import runRoutes from "./server/routes/runs";
 import miscRoutes from "./server/routes/misc";
+import passwordRoutes from "./server/routes/password";
 import { requireAuth } from "./server/middleware";
 import { runDueJobs } from "./server/scheduler";
 import type { Env } from "./server/types";
@@ -17,6 +18,7 @@ protectedApi.use("*", requireAuth);
 protectedApi.route("/accounts", accountRoutes);
 protectedApi.route("/jobs", jobRoutes);
 protectedApi.route("/runs", runRoutes);
+protectedApi.route("/password", passwordRoutes);
 protectedApi.route("/", miscRoutes); // /stats 与 /cron/preview
 app.route("/api", protectedApi);
 
