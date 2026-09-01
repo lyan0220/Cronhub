@@ -67,6 +67,44 @@ describe("runs 路由", () => {
     expect(json.data.deleted).toBe(1);
     expect(db.runs).toHaveLength(3);
   });
+  it("cleanup 自定义天数 + 仅失败记录", async () => {
+    const day = 24 * 3600 * 1000;
+    db.runs.push(
+      { id: 4, job_id: 1, triggered_at: Date.now() - 40 * day, source: "schedule", status: "failed", http_status: 500, error_message: "x" },
+      { id: 5, job_id: 1, triggered_at: Date.now() - 40 * day, source: "schedule", status: "success", http_status: 204, error_message: null },
+      { id: 6, job_id: 1, triggered_at: Date.now() - 10 * day, source: "manual", status: "failed", http_status: 500, error_message: "x" },
+    );
+    const res = await runRoutes.request("/cleanup", {
+      method: "POST",
+      body: JSON.stringify({ days: 30, failedOnly: true }),
+      headers: { "Content-Type": "application/json" },
+    }, env);
+    const json = (await res.json()) as { data: { deleted: number } };
+    expect(json.data.deleted).toBe(1); // 只有 40 天前的失败记录被删
+    expect(db.runs.map((r) => r.id).sort()).toEqual([1, 2, 3, 5, 6]);
+  });
+  it("cleanup 天数超过 3650 返回 400", async () => {
+    const res = await runRoutes.request("/cleanup", {
+      method: "POST",
+      body: JSON.stringify({ days: 4000 }),
+      headers: { "Content-Type": "application/json" },
+    }, env);
+    expect(res.status).toBe(400);
+  });
+  it("retention 默认 90，PUT 后生效且校验非法值", async () => {
+    const before = await runRoutes.request("/retention", {}, env);
+    expect(((await before.json()) as { data: { days: number } }).data.days).toBe(90);
+    const bad = await runRoutes.request("/retention", {
+      method: "PUT", body: JSON.stringify({ days: 0 }), headers: { "Content-Type": "application/json" },
+    }, env);
+    expect(bad.status).toBe(400);
+    const put = await runRoutes.request("/retention", {
+      method: "PUT", body: JSON.stringify({ days: 30 }), headers: { "Content-Type": "application/json" },
+    }, env);
+    expect(put.status).toBe(200);
+    const after = await runRoutes.request("/retention", {}, env);
+    expect(((await after.json()) as { data: { days: number } }).data.days).toBe(30);
+  });
 });
 
 describe("misc 路由", () => {

@@ -141,6 +141,28 @@ describe("runDueJobs", () => {
     expect(db.runs).toHaveLength(1);
     expect((db.runs[0] as Record<string, unknown>).id).toBe(2);
   });
+  it("清理遵循配置的保留期：settings.runs_retention_days=30 时 60 天前的也清掉", async () => {
+    const { env, db } = await makeEnv();
+    addJob(db);
+    const day = 24 * 3600 * 1000;
+    db.runs.push(
+      { id: 1, job_id: 1, triggered_at: NOW - 60 * day, source: "schedule", status: "failed", http_status: 500, error_message: null },
+      { id: 2, job_id: 1, triggered_at: NOW - 20 * day, source: "schedule", status: "success", http_status: 204, error_message: null },
+    );
+    db.settings.set("runs_retention_days", "30");
+    await runDueJobs(env, NOW);
+    // 60 天前的被清掉；20 天前的保留；本轮触发新写入 1 条（NOW 时刻）
+    expect(db.runs.some((r) => (r as Record<string, unknown>).id === 1)).toBe(false);
+    expect(db.runs.some((r) => (r as Record<string, unknown>).id === 2)).toBe(true);
+  });
+  it("未配置保留期时默认 90 天：60 天前的记录保留", async () => {
+    const { env, db } = await makeEnv();
+    addJob(db);
+    const day = 24 * 3600 * 1000;
+    db.runs.push({ id: 1, job_id: 1, triggered_at: NOW - 60 * day, source: "schedule", status: "failed", http_status: 500, error_message: null });
+    await runDueJobs(env, NOW);
+    expect(db.runs.some((r) => (r as Record<string, unknown>).id === 1)).toBe(true);
+  });
 });
 
 describe("triggerJobOnce", () => {

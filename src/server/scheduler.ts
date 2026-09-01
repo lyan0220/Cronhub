@@ -1,9 +1,8 @@
 import { computeNextRun, validateSchedule } from "./schedule";
 import { decryptText } from "./crypto";
 import { triggerGithub } from "./github";
+import { DEFAULT_RUN_RETENTION_DAYS, KEY_RUNS_RETENTION, getSetting } from "./settings";
 import type { AccountRow, Env, JobRow } from "./types";
-
-const RUN_RETENTION_MS = 90 * 24 * 3600 * 1000;
 
 export type TriggerOutcome = { ok: boolean; httpStatus: number; error?: string };
 
@@ -107,6 +106,16 @@ export async function runDueJobs(env: Env, now: number = Date.now()): Promise<{ 
     }
   }
 
-  await env.DB.prepare("DELETE FROM runs WHERE triggered_at < ?").bind(now - RUN_RETENTION_MS).run();
+  // 自动清理：保留期可在界面配置（settings.runs_retention_days），缺省 90 天。
+  // 清理失败不影响本轮触发结果，下个周期会再试。
+  try {
+    const configured = Number(await getSetting(env, KEY_RUNS_RETENTION));
+    const retentionDays = Number.isFinite(configured) && configured > 0
+      ? configured
+      : DEFAULT_RUN_RETENTION_DAYS;
+    await env.DB.prepare("DELETE FROM runs WHERE triggered_at < ?")
+      .bind(now - retentionDays * 24 * 3600 * 1000)
+      .run();
+  } catch { /* 清理失败时忽略，5 分钟后重试 */ }
   return { triggered, failed };
 }

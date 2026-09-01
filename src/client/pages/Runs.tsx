@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { get, errText, post } from "../api";
+import { get, errText } from "../api";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import type { Job, Run } from "../types";
-import { Button, EmptyState, Segmented, Select, Skeleton, cx, focusRing, useConfirm } from "../ui";
+import { Button, EmptyState, Segmented, Select, Skeleton, cx, focusRing } from "../ui";
 import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Trash2 } from "../ui/icons";
 import { fmtTime } from "../utils/time";
+import RunsCleanupDialog from "./RunsCleanupDialog";
 
 const PAGE_SIZE = 50; // 与服务端 routes/runs.ts 的 PAGE_SIZE 一致
 
@@ -14,7 +15,6 @@ type StatusFilter = "" | "success" | "failed";
 
 export default function Runs() {
   const toast = useToast();
-  const confirm = useConfirm();
   const detailId = useId();
   const [params, setParams] = useSearchParams();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -25,6 +25,12 @@ export default function Runs() {
   // patch({ page: "" }) 不改变任何 query，下面 effect 的依赖（全是原始值）不变，
   // 列表会停在已被删除的旧数据上。用一个自增标记显式触发重拉。
   const [nonce, setNonce] = useState(0);
+  const [retention, setRetention] = useState(90);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+
+  useEffect(() => {
+    get<{ days: number }>("/api/runs/retention").then(d => setRetention(d.days)).catch(() => {});
+  }, []);
 
   // URL 是用户可编辑的：?status=whatever 必须退化成「全部」而不是原样发给后端。
   // 服务端也做了同样的白名单（routes/runs.ts:11），两端各挡一次。
@@ -60,24 +66,6 @@ export default function Runs() {
     return () => { alive = false; };
   }, [jobId, status, page, nonce]);
 
-  async function cleanup() {
-    const ok = await confirm({
-      title: "清理 90 天前的运行记录？",
-      description: "被清理的记录无法恢复。任务本身和调度设置不受影响。",
-      confirmText: "清理",
-      tone: "danger",
-    });
-    if (!ok) return;
-    try {
-      const d = await post<{ deleted: number }>("/api/runs/cleanup", {});
-      toast(`已清理 ${d.deleted} 条`);
-      patch({ page: "" });
-      setNonce(n => n + 1);
-    } catch (e) {
-      toast(errText(e), "err");
-    }
-  }
-
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = (page - 1) * PAGE_SIZE + 1;
 
@@ -85,12 +73,12 @@ export default function Runs() {
     <div>
       <PageHeader
         title="运行记录"
-        description={`共 ${total} 条，保留最近 90 天。`}
+        description={`共 ${total} 条，自动保留最近 ${retention} 天。`}
         action={
-          // 本页唯一的头部动作是破坏性的，所以用 danger 而非 primary：
-          // 近黑的 primary 会把「清理」讲成本页推荐的下一步。
-          <Button variant="danger" onClick={() => void cleanup()}
-            icon={<Trash2 className="size-4" />}>清理 90 天前记录</Button>
+          // 打开清理对话框（自动保留期配置 + 按天数/范围立即清理）。
+          // 用 danger：入口主操作是破坏性清理，不该被讲成推荐的下一步。
+          <Button variant="danger" onClick={() => setCleanupOpen(true)}
+            icon={<Trash2 className="size-4" />}>清理记录</Button>
         }
       />
 
@@ -235,6 +223,14 @@ export default function Runs() {
           </Button>
         </div>
       </div>
+
+      <RunsCleanupDialog
+        open={cleanupOpen}
+        retentionDays={retention}
+        onClose={() => setCleanupOpen(false)}
+        onRetentionChanged={setRetention}
+        onCleaned={() => { patch({ page: "" }); setNonce(n => n + 1); }}
+      />
     </div>
   );
 }

@@ -79,6 +79,15 @@ class FakeStmt {
       for (const a of db.accounts) if (a.id === p[1]) { a.status = "invalid"; a.updated_at = p[0]; }
       return 1;
     }
+    if (/DELETE FROM runs WHERE triggered_at < \? AND status='failed'/.test(s)) {
+      const before = db.runs.length;
+      db.runs = db.runs.filter((r) => !(
+        (r.triggered_at as number) > 1e12
+        && (r.triggered_at as number) < p[0]
+        && r.status === "failed"
+      ));
+      return before - db.runs.length;
+    }
     if (/DELETE FROM runs WHERE triggered_at < \?/.test(s)) {
       // 仅清理“真实毫秒时间戳”的过期行：测试夹具中的小时间戳(如 100)视为新记录，不参与清理
       const before = db.runs.length;

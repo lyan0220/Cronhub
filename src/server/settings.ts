@@ -5,6 +5,17 @@ import type { Env } from "./types";
 
 export const KEY_PASSWORD_HASH = "admin_password_hash";
 export const KEY_SESSION_EPOCH = "session_epoch";
+export const KEY_RUNS_RETENTION = "runs_retention_days";
+/** 运行记录保留期默认值（天），与调度器/清理接口的兜底一致 */
+export const DEFAULT_RUN_RETENTION_DAYS = 90;
+
+/** 读取单个配置；无缓存（调用频率低：改密/改保留期/每 5 分钟的调度清理）。 */
+export async function getSetting(env: Env, key: string): Promise<string | null> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?")
+    .bind(key)
+    .first<{ value: string }>();
+  return row?.value ?? null;
+}
 
 type AuthState = { hash: string | null; epoch: number };
 
