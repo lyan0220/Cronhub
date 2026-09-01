@@ -3,12 +3,30 @@ import { del, errText, get, post, put } from "../../api";
 import PageHeader from "../../components/PageHeader";
 import { useToast } from "../../components/Toast";
 import type { Account, Job, Run } from "../../types";
-import { Button, EmptyState, SkeletonCard, useConfirm } from "../../ui";
+import { Button, EmptyState, Segmented, Select, Skeleton, SkeletonCard, useConfirm } from "../../ui";
+import { cx } from "../../ui/styles";
 import { Inbox, Plus } from "../../ui/icons";
+import JobCard from "./JobCard";
 import JobForm, { EMPTY_FORM, type JobFormData } from "./JobForm";
 import JobRow from "./JobRow";
 import { parseSchedule } from "./schedule";
 import { useAlive } from "../../utils/useAlive";
+
+type ViewMode = "card" | "list";
+
+const VIEW_KEY = "jobs.view";
+
+function loadView(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "card";
+  } catch {
+    return "card";
+  }
+}
+
+function saveView(v: ViewMode) {
+  try { localStorage.setItem(VIEW_KEY, v); } catch { /* 隐私模式等存不进就算了 */ }
+}
 
 export default function Jobs() {
   const toast = useToast();
@@ -20,6 +38,8 @@ export default function Jobs() {
   const [snapshot, setSnapshot] = useState<JobFormData | null>(null);
   const [busy, setBusy] = useState(false);
   const [triggering, setTriggering] = useState<number | null>(null);
+  const [view, setView] = useState<ViewMode>(loadView);
+  const [accountId, setAccountId] = useState(0); // 0 = 全部账号
   const alive = useAlive();
 
   async function load() {
@@ -123,6 +143,23 @@ export default function Jobs() {
 
   const dirty = !!form && !!snapshot && JSON.stringify(form) !== JSON.stringify(snapshot);
 
+  // list 为 null（首屏加载中）时 filtered 是空数组，加载骨架屏由 list === null 分支负责
+  const filtered = (list ?? []).filter(j => accountId === 0 || j.account_id === accountId);
+  const rowProps = (j: Job) => ({
+    job: j,
+    lastRun: lastRuns[j.id],
+    triggering: triggering === j.id,
+    onToggle: () => void toggle(j),
+    onTrigger: () => void triggerNow(j),
+    onEdit: () => edit(j),
+    onRemove: () => void remove(j),
+  });
+
+  function switchView(v: ViewMode) {
+    setView(v);
+    saveView(v);
+  }
+
   return (
     <div>
       <PageHeader
@@ -135,10 +172,31 @@ export default function Jobs() {
         }
       />
 
-      {list === null ? (
-        <div className="space-y-3" aria-busy="true">
-          {[0, 1, 2].map(i => <SkeletonCard key={i} />)}
+      {/* 工具条：视图切换（记住偏好）+ 账号筛选，与运行记录页的筛选栏同一套排布 */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Segmented
+          label="展示方式"
+          value={view}
+          options={[{ value: "card", label: "卡片" }, { value: "list", label: "列表" }]}
+          onChange={switchView}
+        />
+        <div className="w-56">
+          <Select aria-label="按账号筛选" value={accountId}
+            onChange={e => setAccountId(Number(e.target.value))}>
+            <option value={0}>全部账号</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
         </div>
+      </div>
+
+      {list === null ? (
+        view === "card" ? (
+          <div className="grid gap-3 lg:grid-cols-2" aria-busy="true">
+            {[0, 1, 2, 3].map(i => <SkeletonCard key={i} />)}
+          </div>
+        ) : (
+          <TableShell><SkeletonRows /></TableShell>
+        )
       ) : list.length === 0 ? (
         <EmptyState
           icon={<Inbox className="size-6" />}
@@ -150,21 +208,19 @@ export default function Jobs() {
             </Button>
           }
         />
-      ) : (
-        <div className="space-y-3">
-          {list.map(j => (
-            <JobRow
-              key={j.id}
-              job={j}
-              lastRun={lastRuns[j.id]}
-              triggering={triggering === j.id}
-              onToggle={() => void toggle(j)}
-              onTrigger={() => void triggerNow(j)}
-              onEdit={() => edit(j)}
-              onRemove={() => void remove(j)}
-            />
-          ))}
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Inbox className="size-6" />}
+          title="该账号下暂无任务"
+          description="换个账号试试，或为它新建一个任务。"
+        />
+      ) : view === "card" ? (        <div className="grid gap-3 lg:grid-cols-2">
+          {filtered.map(j => <JobCard key={j.id} {...rowProps(j)} />)}
         </div>
+      ) : (
+        <TableShell>
+          {filtered.map(j => <JobRow key={j.id} {...rowProps(j)} />)}
+        </TableShell>
       )}
 
       {form && (
@@ -180,5 +236,45 @@ export default function Jobs() {
         />
       )}
     </div>
+  );
+}
+
+const TH = "p-3 text-left text-xs font-medium text-fg-muted whitespace-nowrap";
+
+/** 列表视图的表格外壳（真实行与骨架行共用一套 thead） */
+function TableShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border bg-panel">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border">
+            <th className={cx(TH, "py-2.5 pl-4")}>任务</th>
+            <th className={TH}>目标</th>
+            <th className={TH}>调度</th>
+            <th className={TH}>上次运行</th>
+            <th className={TH}>启用</th>
+            <th className={cx(TH, "pl-3")}>操作</th>
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function SkeletonRows() {
+  return (
+    <>
+      {[0, 1, 2, 3].map(i => (
+        <tr key={i} className="border-b border-border/60 last:border-0">
+          <td className="py-3.5 pl-4 pr-3"><Skeleton className="h-4 w-28" /></td>
+          <td className="p-3"><Skeleton className="h-8 w-44" /></td>
+          <td className="p-3"><Skeleton className="h-8 w-36" /></td>
+          <td className="p-3"><Skeleton className="h-4 w-44" /></td>
+          <td className="p-3"><Skeleton className="h-5 w-9 rounded-full" /></td>
+          <td className="p-3"><Skeleton className="h-4 w-16" /></td>
+        </tr>
+      ))}
+    </>
   );
 }

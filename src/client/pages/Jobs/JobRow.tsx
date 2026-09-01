@@ -1,10 +1,10 @@
-import { Badge, Button, Card, Menu, Switch, type MenuItem } from "../../ui";
-import {
-  ArrowRight, CircleAlert, CircleCheck, CircleX, GitBranch, Pencil, Play, Timer, Trash2,
-} from "../../ui/icons";
+import { Badge, Button, Menu, Switch, type MenuItem } from "../../ui";
+import { Pencil, Play, Trash2 } from "../../ui/icons";
+import { cx } from "../../ui/styles";
 import type { Job, Run } from "../../types";
 import { fmtShort, relativeTime } from "../../utils/time";
 import { describeLocal, parseSchedule } from "./schedule";
+import { lastLine, LINE_CLS, LINE_ICON, targetOf } from "./shared";
 
 type Props = {
   job: Job;
@@ -17,29 +17,8 @@ type Props = {
   onRemove: () => void;
 };
 
-type Line = { tone: "success" | "danger" | "muted"; text: string };
-
-function lastLine(job: Job, lastRun?: Run): Line | null {
-  if (lastRun) {
-    const when = `${fmtShort(lastRun.triggered_at)}（${relativeTime(lastRun.triggered_at)}）`;
-    const how = lastRun.source === "manual" ? "手动" : "定时";
-    if (lastRun.status === "failed") {
-      return { tone: "danger", text: `上次 ${when} ${how}失败 · HTTP ${lastRun.http_status ?? "-"}` };
-    }
-    return { tone: "success", text: `上次 ${when} ${how}成功` };
-  }
-  // 更早于最近 50 条记录：只有 jobs.last_run_at，拿不到成败
-  if (job.last_run_at) return { tone: "muted", text: `上次 ${fmtShort(job.last_run_at)}（${relativeTime(job.last_run_at)}）` };
-  return null;
-}
-
-const LINE_ICON = { success: CircleCheck, danger: CircleX, muted: CircleAlert } as const;
-const LINE_CLS = { success: "text-success", danger: "text-danger", muted: "text-fg-subtle" } as const;
-
+/** 列表视图：表格行，信息密度高于卡片网格 */
 export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, onEdit, onRemove }: Props) {
-  const target = job.trigger_type === "workflow_dispatch"
-    ? `${job.workflow_id} @ ${job.ref}`
-    : `event: ${job.event_type}`;
   const schedule = describeLocal(parseSchedule(job.schedule_json));
   const line = lastLine(job, lastRun);
   const LineIcon = line && LINE_ICON[line.tone];
@@ -50,43 +29,52 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
   ];
 
   return (
-    <Card interactive className="p-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="min-w-0 flex-1 truncate font-medium text-fg">{job.name}</span>
-        <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
-        <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
-        <Button size="sm" variant="ghost" loading={triggering} onClick={onTrigger}
-          icon={<Play className="size-3.5" />}>立即触发</Button>
-        <Menu label={`「${job.name}」更多操作`} items={items} />
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
-        <span className="inline-flex items-center gap-1.5 font-mono">
-          <GitBranch className="size-3.5 shrink-0" aria-hidden />{job.repo}
-        </span>
-        <span className="font-mono">{target}</span>
-        <span>{job.account_name ?? "账号已删除"}</span>
-      </div>
-
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
-        <span className="inline-flex items-center gap-1.5">
-          <Timer className="size-3.5 shrink-0" aria-hidden />{schedule}
-        </span>
-        {job.enabled === 1 && (
-          <span className="inline-flex items-center gap-1.5 tabular-nums">
-            <ArrowRight className="size-3.5 shrink-0" aria-hidden />
-            下次 {fmtShort(job.next_run_at)}
-            <span className="text-fg-subtle">{relativeTime(job.next_run_at)}</span>
-          </span>
-        )}
-      </div>
-
-      {line && LineIcon && (
-        <div className={`mt-1.5 inline-flex items-center gap-1.5 text-xs ${LINE_CLS[line.tone]}`}>
-          <LineIcon className="size-3.5 shrink-0" aria-hidden />
-          <span className="tabular-nums">{line.text}</span>
+    <tr className={cx(
+      "border-b border-border/60 last:border-0",
+      "transition-colors duration-fast ease-smooth hover:bg-panel-hover",
+    )}>
+      <td className="py-2.5 pl-4 pr-3">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-fg">{job.name}</span>
+          <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
         </div>
-      )}
-    </Card>
+        <div className="mt-0.5 text-xs text-fg-subtle">{job.account_name ?? "账号已删除"}</div>
+      </td>
+      <td className="p-3 text-xs">
+        <div className="font-mono text-fg">{job.repo}</div>
+        <div className="mt-0.5 font-mono text-fg-muted">{targetOf(job)}</div>
+      </td>
+      <td className="p-3 text-xs whitespace-nowrap">
+        <div className="text-fg-muted">{schedule}</div>
+        {job.enabled === 1 ? (
+          <div className="mt-0.5 tabular-nums text-fg-muted">
+            下次 {fmtShort(job.next_run_at)}{" "}
+            <span className="text-fg-subtle">{relativeTime(job.next_run_at)}</span>
+          </div>
+        ) : (
+          <div className="mt-0.5 text-fg-subtle">—</div>
+        )}
+      </td>
+      <td className="p-3 text-xs whitespace-nowrap">
+        {line && LineIcon ? (
+          <span className={`inline-flex items-center gap-1.5 ${LINE_CLS[line.tone]}`}>
+            <LineIcon className="size-3.5 shrink-0" aria-hidden />
+            <span className="tabular-nums">{line.text}</span>
+          </span>
+        ) : (
+          <span className="text-fg-subtle">—</span>
+        )}
+      </td>
+      <td className="p-3">
+        <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
+      </td>
+      <td className="py-2.5 pl-3 pr-4">
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" loading={triggering} onClick={onTrigger}
+            icon={<Play className="size-3.5" />}>触发</Button>
+          <Menu label={`「${job.name}」更多操作`} items={items} />
+        </div>
+      </td>
+    </tr>
   );
 }
