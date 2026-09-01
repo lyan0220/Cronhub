@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useConfirm } from "./ConfirmDialog";
 import { X } from "./icons";
-import { cx } from "./styles";
+import { cx, focusRing } from "./styles";
 
 type Props = {
   open: boolean;
@@ -71,7 +71,7 @@ export function Drawer({ open, onClose, title, dirty = false, children }: Props)
           <button type="button" onClick={() => void attemptClose()} aria-label="关闭"
             className={cx(
               "-m-1 rounded-md p-1 text-fg-subtle transition-colors duration-fast hover:bg-panel-hover hover:text-fg",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+              focusRing,
             )}>
             <X className="size-4" />
           </button>

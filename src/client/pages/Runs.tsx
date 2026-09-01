@@ -4,7 +4,7 @@ import { get, post } from "../api";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import type { Job, Run } from "../types";
-import { Button, EmptyState, Segmented, Select, Skeleton, cx, useConfirm } from "../ui";
+import { Button, EmptyState, Segmented, Select, Skeleton, cx, focusRing, useConfirm } from "../ui";
 import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Trash2 } from "../ui/icons";
 import { fmtTime } from "../utils/time";
 
@@ -153,7 +153,8 @@ export default function Runs() {
                     className={cx(
                       "border-b border-border/60 last:border-0",
                       "transition-colors duration-fast ease-smooth",
-                      failed ? "bg-danger-soft" : "hover:bg-panel-hover",
+                      // 失败行也保留 hover 反馈，只是底色系不同；普通行走中性 hover
+                      failed ? "bg-danger-soft hover:bg-danger/10" : "hover:bg-panel-hover",
                       canExpand && "cursor-pointer",
                     )}
                   >
@@ -174,7 +175,7 @@ export default function Runs() {
                           className={cx(
                             "inline-flex items-center gap-1 rounded font-medium",
                             "underline decoration-dotted underline-offset-2",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+                            focusRing,
                           )}>
                           失败
                           <ChevronDown aria-hidden className={cx(

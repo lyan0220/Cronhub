@@ -60,8 +60,8 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
           placeholder="分 时 日 月 周（UTC），如 30 3 * * *"
           onChange={e => onChange({ ...value, expr: e.target.value })} />
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-32">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className="w-32 shrink-0">
             <Select value={value.mode ?? "fixed"}
               onChange={e => onChange({
                 ...value,
@@ -73,24 +73,24 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
             </Select>
           </div>
           {value.mode === "random" ? (
-            <>
-              <div className="w-24">
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="w-16 shrink-0">
                 <Input type="number" min={1} value={value.min ?? 30}
                   onChange={e => onChange({ ...value, min: Number(e.target.value) })} />
               </div>
-              <span className="text-fg-muted">~</span>
-              <div className="w-24">
+              <span className="shrink-0 text-fg-muted">~</span>
+              <div className="w-16 shrink-0">
                 <Input type="number" min={1} value={value.max ?? 90}
                   onChange={e => onChange({ ...value, max: Number(e.target.value) })} />
               </div>
-            </>
+            </div>
           ) : (
-            <div className="w-24">
+            <div className="w-16 shrink-0">
               <Input type="number" min={1} value={value.value ?? 45}
                 onChange={e => onChange({ ...value, value: Number(e.target.value) })} />
             </div>
           )}
-          <div className="w-24">
+          <div className="w-20 shrink-0">
             <Select value={value.unit ?? "m"}
               onChange={e => onChange({ ...value, unit: e.target.value as "m" | "h" | "d" })}>
               <option value="m">分钟</option>

@@ -1,6 +1,6 @@
 import { useTheme, type ThemePref } from "../theme";
 import { Monitor, Moon, Sun, type LucideIcon } from "../ui/icons";
-import { cx } from "../ui/styles";
+import { cx, focusRing } from "../ui/styles";
 
 const OPTIONS: { value: ThemePref; label: string; Icon: LucideIcon }[] = [
   { value: "light", label: "浅色", Icon: Sun },
@@ -25,8 +25,9 @@ export default function ThemeToggle() {
           className={cx(
             "flex flex-1 items-center justify-center rounded-md py-1.5",
             "transition-colors duration-fast ease-smooth",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
-            pref === value ? "bg-panel text-fg shadow-sm" : "text-fg-subtle hover:text-fg",
+            focusRing,
+            // 与 Segmented 同一套选中语言：fg 浅底，不用白底+阴影
+            pref === value ? "bg-fg/10 text-fg" : "text-fg-subtle hover:bg-fg/5 hover:text-fg",
           )}
         >
           <Icon className="size-4" aria-hidden />

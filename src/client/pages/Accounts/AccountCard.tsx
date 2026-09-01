@@ -92,7 +92,7 @@ function EditForm({ account, onCancel, onSaved }:
 
   return (
     <form onSubmit={submit}
-      className="flex flex-col gap-3 rounded-xl border border-accent bg-panel p-4 ring-2 ring-accent/20">
+      className="flex flex-col gap-3 rounded-xl border border-border bg-panel p-4 animate-in-pop">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <Input value={name} aria-label="备注名" className="font-medium"
@@ -117,7 +117,7 @@ function EditForm({ account, onCancel, onSaved }:
         "flex items-center gap-2 text-xs text-fg-muted",
         !token && "opacity-50",
       )}>
-        <input type="checkbox" checked={verify} disabled={!token} className="accent-accent"
+        <input type="checkbox" checked={verify} disabled={!token} className="accent-fg cursor-pointer"
           onChange={e => setVerify(e.target.checked)} />
         保存新 Token 时在线验证（推荐）
       </label>

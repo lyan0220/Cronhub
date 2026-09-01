@@ -1,4 +1,4 @@
-import { cx } from "./styles";
+import { cx, focusRing } from "./styles";
 
 type Props = { checked: boolean; onChange: (next: boolean) => void; disabled?: boolean; label: string };
 
@@ -14,7 +14,7 @@ export function Switch({ checked, onChange, disabled, label }: Props) {
       onClick={() => onChange(!checked)}
       className={cx(
         "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-fast ease-smooth",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+        focusRing,
         "disabled:cursor-not-allowed disabled:opacity-50",
         checked ? "bg-success" : "bg-border-strong",
       )}

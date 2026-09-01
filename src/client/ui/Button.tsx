@@ -1,16 +1,17 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { LoaderCircle } from "./icons";
-import { cx } from "./styles";
+import { cx, focusRing } from "./styles";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
 
 const VARIANTS: Record<Variant, string> = {
-  // 主按钮近黑：浅色下深底白字，深色下反转为白底黑字
-  primary: "bg-fg text-surface hover:opacity-85",
+  // 主按钮近黑：浅色下深底白字，深色下反转为白底黑字。hover 走 --fg-hover 色阶
+  // 而不是 opacity —— 深色反转时透明度会让白底按钮透出页面底色发灰。
+  primary: "bg-fg text-surface hover:bg-fg-hover active:bg-fg/85",
   secondary: "border border-border bg-panel text-fg hover:bg-panel-hover hover:border-border-strong",
   ghost: "text-fg-muted hover:bg-panel-hover hover:text-fg",
-  danger: "border border-danger/40 bg-danger-soft text-danger hover:border-danger",
+  danger: "border border-danger/40 bg-danger-soft text-danger hover:border-danger hover:bg-danger/10",
 };
 
 const SIZES: Record<Size, string> = {
@@ -37,7 +38,7 @@ export function Button({
       className={cx(
         "inline-flex shrink-0 items-center justify-center rounded-lg font-medium",
         "transition-all duration-fast ease-smooth",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+        focusRing,
         "disabled:cursor-not-allowed disabled:opacity-50",
         VARIANTS[variant], SIZES[size], className,
       )}

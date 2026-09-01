@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { MoreHorizontal } from "./icons";
-import { cx } from "./styles";
+import { cx, focusRing } from "./styles";
 
 export type MenuItem = {
   label: string;
@@ -86,7 +86,7 @@ export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
         className={cx(
           "rounded-md p-1.5 text-fg-subtle transition-colors duration-fast",
           "hover:bg-panel-hover hover:text-fg",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+          focusRing,
           open && "bg-panel-hover text-fg",
         )}
       >
@@ -114,7 +114,7 @@ export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
               className={cx(
                 "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm",
                 "transition-colors duration-fast hover:bg-panel-hover",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+                focusRing,
                 it.tone === "danger" ? "text-danger" : "text-fg",
               )}
             >

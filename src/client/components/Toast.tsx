@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { CircleCheck, CircleX, X } from "../ui/icons";
-import { cx } from "../ui/styles";
+import { cx, focusRing } from "../ui/styles";
 
 type Kind = "ok" | "err";
 type ToastItem = { id: number; message: string; kind: Kind };
@@ -56,7 +56,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <button type="button" onClick={() => dismiss(t.id)} aria-label="关闭提示"
               className={cx(
                 "-m-1 shrink-0 rounded p-1 opacity-60 transition-opacity duration-fast hover:opacity-100",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:opacity-100",
+                focusRing,
+                "focus-visible:opacity-100",
               )}>
               <X className="size-3.5" />
             </button>

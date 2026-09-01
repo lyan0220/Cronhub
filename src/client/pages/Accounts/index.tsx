@@ -99,7 +99,7 @@ export default function Accounts() {
             )}
           </Field>
           <label className="mb-4 flex items-center gap-2 text-sm text-fg-muted">
-            <input type="checkbox" checked={verify} className="accent-accent"
+            <input type="checkbox" checked={verify} className="accent-fg cursor-pointer"
               onChange={e => setVerify(e.target.checked)} />
             保存时在线验证 Token（推荐）
           </label>

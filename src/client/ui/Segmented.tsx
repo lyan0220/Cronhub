@@ -1,4 +1,4 @@
-import { cx } from "./styles";
+import { cx, focusRing } from "./styles";
 
 type Props<T extends string> = {
   value: T;
@@ -22,8 +22,12 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
           className={cx(
             "rounded-md px-3 py-1.5 text-sm whitespace-nowrap",
             "transition-colors duration-fast ease-smooth",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
-            value === o.value ? "bg-panel font-medium text-fg shadow-sm" : "text-fg-muted hover:text-fg",
+            focusRing,
+            // 选中态用 fg 的浅底而不是 bg-panel：surface 容器上白底加淡阴影
+            // 对比太弱，选中与否几乎看不出差别
+            value === o.value
+              ? "bg-fg/10 font-medium text-fg"
+              : "text-fg-muted hover:bg-fg/5 hover:text-fg",
           )}
         >
           {o.label}

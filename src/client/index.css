@@ -3,6 +3,8 @@
 /* 深色模式改为 class 驱动。缺这一行，.dark 类不生效，手动切换无效。 */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* 单色系统：无彩色强调 token。前景（--fg）即强调色——主按钮、链接、激活态、
+   焦点环全部走 fg 系；success/danger/warn 仅保留语义用途（状态、危险操作）。 */
 :root {
   --surface: #fafafa;
   --panel: #ffffff;
@@ -12,7 +14,9 @@
   --fg: #0a0a0a;
   --fg-muted: #737373;
   --fg-subtle: #a3a3a3;
-  --accent: #4f46e5;
+  /* 近黑前景的 hover 档：主按钮不能用 opacity 做 hover，深色反转时会让
+     白底按钮透出页面底色发灰。用明确的色阶，明暗各给一档。 */
+  --fg-hover: #2e2e33;
   --success: #059669;
   --success-soft: #ecfdf5;
   --danger: #dc2626;
@@ -30,7 +34,7 @@
   --fg: #fafafa;
   --fg-muted: #8f8f99;
   --fg-subtle: #62626b;
-  --accent: #818cf8;
+  --fg-hover: #d4d4d8;
   --success: #34d399;
   --success-soft: #052e23;
   --danger: #f87171;
@@ -49,7 +53,7 @@
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
   --color-fg-subtle: var(--fg-subtle);
-  --color-accent: var(--accent);
+  --color-fg-hover: var(--fg-hover);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-danger: var(--danger);

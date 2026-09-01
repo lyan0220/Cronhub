@@ -6,7 +6,7 @@ import {
   LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, Users, X,
   type LucideIcon,
 } from "../ui/icons";
-import { cx } from "../ui/styles";
+import { cx, focusRing } from "../ui/styles";
 import ThemeToggle from "./ThemeToggle";
 
 type Link = {
@@ -24,7 +24,7 @@ const LINKS: Link[] = [
 const iconBtn = cx(
   "rounded-md p-1 text-fg-muted transition-colors duration-fast ease-smooth",
   "hover:bg-panel-hover hover:text-fg",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+  focusRing,
 );
 
 function NavItems({ stats, onNavigate }: { stats: Stats | null; onNavigate?: () => void }) {
@@ -36,9 +36,9 @@ function NavItems({ stats, onNavigate }: { stats: Stats | null; onNavigate?: () 
             "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm",
             "transition-colors duration-fast ease-smooth",
             "before:absolute before:top-1/2 before:left-0 before:h-4 before:w-0.5",
-            "before:-translate-y-1/2 before:rounded-full before:bg-accent",
+            "before:-translate-y-1/2 before:rounded-full before:bg-fg",
             "before:transition-opacity before:duration-fast",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+            focusRing,
             isActive
               ? "bg-panel-hover font-medium text-fg before:opacity-100"
               : "text-fg-muted before:opacity-0 hover:bg-panel-hover hover:text-fg",
@@ -109,17 +109,21 @@ export default function Layout() {
   );
 
   const footer = (
-    <div className="mt-auto flex flex-col gap-2 pt-4">
-      <ThemeToggle />
-      <button type="button" onClick={logout}
-        className={cx(
-          "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-fg-muted",
-          "transition-colors duration-fast ease-smooth hover:bg-danger-soft hover:text-danger",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
-        )}>
-        <LogOut className="size-4 shrink-0" aria-hidden />
-        退出登录
-      </button>
+    <div className="mt-auto flex flex-col gap-3 pt-4">
+      <div>
+        <ThemeToggle />
+      </div>
+      <div className="border-t border-border pt-3">
+        <button type="button" onClick={logout}
+          className={cx(
+            "flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-sm text-fg-muted",
+            "transition-colors duration-fast ease-smooth hover:bg-danger-soft hover:text-danger",
+            focusRing,
+          )}>
+          <span>退出登录</span>
+          <LogOut className="size-4 shrink-0" aria-hidden />
+        </button>
+      </div>
     </div>
   );
 
