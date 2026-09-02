@@ -255,7 +255,8 @@ function TableShell({ children }: { children: React.ReactNode }) {
             <th className={TH}>目标</th>
             <th className={TH}>调度</th>
             <th className={TH}>上次运行</th>
-            <th className={TH}>启用</th>
+            <th className={TH_CENTER}>状态</th>
+            <th className={TH_CENTER}>启用</th>
             <th className={TH_CENTER}>操作</th>
           </tr>
         </thead>
@@ -274,6 +275,7 @@ function SkeletonRows() {
           <td className="p-3"><Skeleton className="h-8 w-44" /></td>
           <td className="p-3"><Skeleton className="h-8 w-36" /></td>
           <td className="p-3"><Skeleton className="h-4 w-44" /></td>
+          <td className="p-3"><Skeleton className="h-5 w-9 rounded-full" /></td>
           <td className="p-3"><Skeleton className="h-5 w-9 rounded-full" /></td>
           <td className="p-3"><div className="flex justify-center"><Skeleton className="h-4 w-16" /></div></td>
         </tr>

@@ -29,10 +29,7 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
       "transition-colors duration-fast ease-smooth hover:bg-panel-hover",
     )}>
       <td className="py-2.5 pl-4 pr-3">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-fg">{job.name}</span>
-          <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
-        </div>
+        <div className="font-medium text-fg">{job.name}</div>
         <div className="mt-0.5 text-xs text-fg-subtle">{job.account_name ?? "账号已删除"}</div>
       </td>
       <td className="p-3 text-xs">
@@ -60,8 +57,13 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
           <span className="text-fg-subtle">—</span>
         )}
       </td>
+      <td className="p-3 text-center">
+        <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
+      </td>
       <td className="p-3">
-        <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
+        <div className="flex justify-center">
+          <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
+        </div>
       </td>
       <td className="py-2.5 pr-3 pl-3">
         {/* 触发/编辑/删除语义配色：绿/蓝/红；按钮簇与标题一起居中，空白对称分布 */}
