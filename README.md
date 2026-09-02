@@ -25,18 +25,26 @@ npx wrangler dev --test-scheduled
 curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"
 ```
 
-## 分支模型
+## 开发与发布
 
-| 分支 | 内容 | push 行为 |
-|---|---|---|
-| `dev` | 全部代码 + 测试 + 文档 | 不部署 |
-| `main` | 仅生产文件 | 自动部署 |
+远程仓库只保留 `main` 分支，push `main` 自动部署。
+
+- 生产代码与构建/部署配置（`src/`、`wrangler.jsonc`、deploy workflow 等）：提交到 `main`
+- 测试（`test/`、`vitest.config.ts`）、计划/设计文档（`docs/`）、本地调试配置（`.dev.vars.example`）：已加入 `.gitignore`，仅保存在本地，不提交到远程
 
 发布：
 
 ```bash
-npm run release          # 同步 dev → main，剔除非生产文件
 git push origin main
+```
+
+## 测试（仅本地）
+
+测试文件不入库，仅本地保留：
+
+```bash
+npm run test        # Vitest，覆盖服务端路由与客户端纯逻辑
+npm run typecheck
 ```
 
 ## 部署
@@ -53,7 +61,7 @@ push `main` 触发部署。首次部署自动创建 D1（`cronjob_db`）、建�
 
 - 改密码：修改 `ADMIN_PASSWORD` secret 后 push `main`
 - `TOKEN_ENC_KEY` 仅首次部署生成，之后不覆盖；删除它会导致所有已存 PAT 无法解密，需重新粘贴
-- 纯 `.md` 修改不触发部署
+- 纯文档修改不触发部署
 
 ### 本地部署（备选）
 
