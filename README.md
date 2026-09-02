@@ -1,69 +1,49 @@
 # GitHub Actions 定时触发中心
 
-Cloudflare Worker + D1 应用，定时触发 GitHub Actions workflow。
+部署在 Cloudflare Workers + D1 上的定时任务服务：配置 GitHub 账号与任务规则，按计划自动触发目标仓库的 GitHub Actions workflow。
 
-- 多账号 PAT 管理（AES-GCM 加密存储，在线验证）
-- 多仓库，任务独立调度：cron / 固定间隔 / 随机间隔
-- 两种触发方式：workflow_dispatch、repository_dispatch
-- 运行记录（时间 / 状态 / HTTP 码 / 错误信息），支持手动触发
-- Web 管理页，单管理密码登录
+## 功能
 
-## 本地开发
-
-```bash
-npm install
-cp .dev.vars.example .dev.vars   # 填 ADMIN_PASSWORD、TOKEN_ENC_KEY
-npm run db:local
-npm run dev                      # http://localhost:5173
-```
-
-测试本地 scheduled：
-
-```bash
-npm run build
-npx wrangler dev --test-scheduled
-curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"
-```
-
-## 开发与发布
-
-远程仓库只保留 `main` 分支，push `main` 自动部署。
-
-- 生产代码与构建/部署配置（`src/`、`wrangler.jsonc`、deploy workflow 等）：提交到 `main`
-- 测试（`test/`、`vitest.config.ts`）、计划/设计文档（`docs/`）、本地调试配置（`.dev.vars.example`）：已加入 `.gitignore`，仅保存在本地，不提交到远程
-
-发布：
-
-```bash
-git push origin main
-```
-
-## 测试（仅本地）
-
-测试文件不入库，仅本地保留：
-
-```bash
-npm run test        # Vitest，覆盖服务端路由与客户端纯逻辑
-npm run typecheck
-```
+- **多账号管理**：多个 GitHub 账号的 PAT，AES-GCM 加密存储，支持在线验证
+- **定时任务**：每个任务独立调度，支持 cron 表达式、固定间隔、随机间隔三种规则，可随时启停
+- **两种触发方式**：workflow_dispatch（可指定分支、传 inputs）、repository_dispatch（client_payload 传参）
+- **运行记录**：记录每次触发的时间、状态、HTTP 码、错误信息，支持手动立即触发
+- **Web 管理页**：单密码登录，支持在页面内修改密码，账号 / 任务 / 运行记录统一管理
 
 ## 部署
 
-GitHub 仓库 Settings → Secrets and variables → Actions 添加 3 个 secret：
+### 方式一：GitHub Actions 自动部署（推荐）
+
+1. 将本仓库 Fork 到你的 GitHub 账号。
+2. 仓库 Settings → Secrets and variables → Actions，添加 3 个 secret：
 
 | Secret | 值 |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | My Profile → API Tokens → Create Token（Edit Cloudflare Workers 模板，含 Workers Scripts:Edit、D1:Edit） |
-| `CLOUDFLARE_ACCOUNT_ID` | Dashboard 首页右侧 Account ID |
-| `ADMIN_PASSWORD` | 管理页登录密码 |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare My Profile → API Tokens → Create Token，使用 Edit Cloudflare Workers 模板（含 Workers Scripts:Edit、D1:Edit） |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Dashboard 首页右侧 Account ID |
+| `ADMIN_PASSWORD` | 初始登录密码（仅在从未于页面内改密时生效，见下） |
 
-push `main` 触发部署。首次部署自动创建 D1（`cronjob_db`）、建表、生成 `TOKEN_ENC_KEY`。
+3. push `main` 分支即触发自动部署。
 
-- 改密码：修改 `ADMIN_PASSWORD` secret 后 push `main`
-- `TOKEN_ENC_KEY` 仅首次部署生成，之后不覆盖；删除它会导致所有已存 PAT 无法解密，需重新粘贴
-- 纯文档修改不触发部署
+首次部署自动完成：创建 D1 数据库（`cronjob_db`）、建表、生成 `TOKEN_ENC_KEY` 加密密钥。
 
-### 本地部署（备选）
+注意事项：
+
+- `TOKEN_ENC_KEY` 仅首次部署生成，之后不覆盖；删除会导致所有已存 PAT 无法解密，需重新录入
+
+改密码：
+
+- 登录后点击顶栏账户菜单 →「修改密码」，需验证当前密码；改密成功后所有登录会话立即失效，需重新登录
+- 密码哈希存入 D1 数据库并优先于 `ADMIN_PASSWORD` 环境变量，因此**在页面内改密后，修改 `ADMIN_PASSWORD` secret 不再影响登录密码**
+- 忘记密码：删除数据库中的密码哈希，即可回退用 `ADMIN_PASSWORD` 登录：
+
+  ```bash
+  npx wrangler d1 execute cronjob_db --remote --command "DELETE FROM settings WHERE key='admin_password_hash'"
+  ```
+
+  若 `ADMIN_PASSWORD` 本身也忘了，先更新该 secret 并重新部署，再执行上面的命令。
+
+### 方式二：本地部署
 
 ```bash
 npx wrangler secret put ADMIN_PASSWORD
@@ -72,17 +52,17 @@ npm run db:init
 npm run deploy
 ```
 
-无需配置 database_id，首次部署自动创建 `cronjob_db`。
+无需预配置 database_id，首次部署自动创建 `cronjob_db`。
 
 ## 使用说明
 
-1. 用 `ADMIN_PASSWORD` 登录管理页。
-2. 「账号」页添加账号：备注名 + PAT，可当场验证。
-3. 「任务」页新建任务：账号、仓库、触发方式、调度规则。
+1. 用初始密码 `ADMIN_PASSWORD` 登录管理页（后续可在页面内修改，见「部署 → 改密码」）。
+2. 「账号」页添加 GitHub 账号：备注名 + PAT，可当场验证连通性。
+3. 「任务」页新建任务：选择账号、填写仓库、选择触发方式与调度规则。
 4. 任务列表支持启停、立即触发、编辑、删除。
-5. 「运行记录」页查看每次触发详情。
+5. 「运行记录」页查看每次触发的详情。
 
-### PAT 权限
+### PAT 权限要求
 
 | 类型 | 权限 |
 |---|---|
@@ -159,8 +139,13 @@ workflow 内读取参数：`github.event.client_payload.foo`。
 ### 其他
 
 - cron 按 UTC 计算，北京时间减 8 小时。
-- 调度每 5 分钟扫描一次；免费计划 cron 延迟约 1 分钟。
+- 调度每 5 分钟扫描一次；Cloudflare 免费计划的 cron 触发延迟约 1 分钟。
 
 ## 技术栈
 
 Hono · React 18 · Vite · Tailwind CSS v4 · Cloudflare Workers · D1 · Vitest
+
+## 许可证
+
+[MIT](LICENSE)
+
