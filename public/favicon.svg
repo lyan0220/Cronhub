@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 品牌 favicon：与 src/client/components/Logo.tsx 同一图形，固定用暗色方块（亮色 glyph）
+       —— 浏览器标签栏明暗底色下都清晰，也与应用暗色主题下的品牌块一致 -->
+  <rect width="32" height="32" rx="8" fill="#0a0a0a"/>
+  <path d="M22.96 11.13 A8.5 8.5 0 1 0 22.96 20.87" fill="none" stroke="#fafafa" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M13.4 11.1 L13.4 20.9 L21.3 16 Z" fill="#fafafa"/>
+</svg>

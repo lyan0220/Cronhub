@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "../ui/icons";
 import { cx, focusRing } from "../ui/styles";
+import { Logo } from "./Logo";
 import PasswordDialog from "./PasswordDialog";
 import ThemeToggle from "./ThemeToggle";
 
@@ -104,9 +105,7 @@ export default function Layout() {
 
   const brand = (
     <div className="flex items-center gap-2">
-      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-fg text-[11px] font-bold text-surface">
-        AC
-      </span>
+      <Logo className="size-7" />
       <span className="truncate text-base font-semibold tracking-tight text-fg">Actions Cronhub</span>
     </div>
   );

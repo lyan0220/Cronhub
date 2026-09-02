@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { errText, post } from "../api";
+import { Logo } from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import { Button, Field, Input } from "../ui";
-import { KeyRound } from "../ui/icons";
 
 export default function Login() {
   const [password, setPassword] = useState("");
@@ -39,9 +39,7 @@ export default function Login() {
         >
           <div className="rounded-2xl border border-border bg-panel p-7 shadow-sm">
             <div className="mb-6 flex flex-col items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-fg text-surface">
-                <KeyRound className="size-5" />
-              </div>
+              <Logo className="size-10" />
               <div className="text-center">
                 <h1 className="text-base font-semibold">Actions Cronhub</h1>
                 <p className="mt-0.5 text-xs text-fg-muted">输入管理密码以继续</p>
