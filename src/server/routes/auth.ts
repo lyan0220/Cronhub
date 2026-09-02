@@ -1,38 +1,42 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { createSessionToken, verifyPassword, verifySessionToken } from "../crypto";
+import { createSessionToken, verifyPassword, verifyPasswordHash, verifySessionToken } from "../crypto";
+import { getAuthState } from "../settings";
 import type { Env } from "../types";
 
-// 内存级登录限速：连续错 5 次锁 10 分钟（单管理密码场景够用；
-// Worker 实例重启会清零，属可接受的折衷）
-let fails = 0;
-let lockedUntil = 0;
-export function _resetLoginRateLimit() {
-  fails = 0;
-  lockedUntil = 0;
-}
-
+// 登录限速：只统计「失败」，按 IP 每 60 秒 5 次（配额在 wrangler.jsonc 的
+// ratelimits 里配置——binding 的 simple 变体只支持 10/60 秒窗口），走 Workers
+// Ratelimit binding——跨实例共享计数，实例重启不丢。原先的模块级内存计数有
+// 两个问题：多实例各自计数，分布式爆破轻松绕过；且不分 IP，攻击者错 5 次就把
+// 全局锁 10 分钟，等于把合法管理员也锁在门外。按 IP 仍有 NAT 共享出口的误伤
+// 可能，属该方案的固有取舍。
 const authRoutes = new Hono<{ Bindings: Env }>();
 
 authRoutes.post("/login", async (c) => {
-  if (Date.now() < lockedUntil) {
-    return c.json({ ok: false, error: "尝试次数过多，请 10 分钟后再试" }, 429);
-  }
   let password = "";
   try {
     const body = await c.req.json<{ password?: unknown }>();
     if (typeof body.password === "string") password = body.password;
   } catch { /* 视为空密码 */ }
-  if (!password || !(await verifyPassword(password, c.env.ADMIN_PASSWORD))) {
-    fails++;
-    if (fails >= 5) {
-      lockedUntil = Date.now() + 10 * 60_000;
-      fails = 0;
+
+  // 密码来源：settings 里存过 PBKDF2 哈希就用它；否则回退到部署变量
+  // ADMIN_PASSWORD（初始状态）。环境变量仅在从未改过密码时有效。
+  const state = await getAuthState(c.env);
+  const ok = !!password && (state.hash
+    ? await verifyPasswordHash(state.hash, password)
+    : await verifyPassword(password, c.env.ADMIN_PASSWORD));
+  if (!ok) {
+    // 只在失败路径上消耗配额：成功登录永远不计数，管理员输错几次也不会被锁。
+    // 第 RL_LIMIT+1 次失败拿到 429。
+    const rl = c.env.RATE_LIMITER;
+    if (rl) {
+      const key = c.req.header("CF-Connecting-IP") ?? "unknown";
+      const r = await rl.limit({ key });
+      if (!r.success) return c.json({ ok: false, error: "尝试次数过多，请稍后再试" }, 429);
     }
     return c.json({ ok: false, error: "密码错误" }, 401);
   }
-  fails = 0;
-  const token = await createSessionToken(c.env.ADMIN_PASSWORD);
+  const token = await createSessionToken(c.env.ADMIN_PASSWORD, state.epoch);
   setCookie(c, "session", token, {
     httpOnly: true,
     secure: true, // localhost 下现代浏览器同样接受 Secure Cookie
@@ -50,7 +54,8 @@ authRoutes.post("/logout", (c) => {
 
 authRoutes.get("/me", async (c) => {
   const token = getCookie(c, "session");
-  if (token && (await verifySessionToken(token, c.env.ADMIN_PASSWORD))) {
+  const { epoch } = await getAuthState(c.env);
+  if (token && (await verifySessionToken(token, c.env.ADMIN_PASSWORD, epoch))) {
     return c.json({ ok: true, data: null });
   }
   return c.json({ ok: false, error: "未登录" }, 401);

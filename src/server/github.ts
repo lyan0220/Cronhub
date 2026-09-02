@@ -33,6 +33,7 @@ export async function triggerGithub(
   cfg: TriggerConfig,
   fetchFn: typeof fetch = fetch,
   timeoutMs = 15_000,
+  retryDelayMs = 1_000,
 ): Promise<TriggerResult> {
   let url: string;
   let body: Record<string, unknown>;
@@ -48,22 +49,36 @@ export async function triggerGithub(
   } catch (e) {
     return { ok: false, httpStatus: 0, error: (e as Error).message };
   }
-  try {
-    const res = await fetchFn(url, {
-      method: "POST",
-      headers: HEADERS(token),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (res.status === 204) return { ok: true, httpStatus: 204 };
-    let msg = await res.text();
+
+  const once = async (): Promise<TriggerResult> => {
     try {
-      msg = (JSON.parse(msg) as { message?: string }).message ?? msg;
-    } catch { /* 保留原文 */ }
-    return { ok: false, httpStatus: res.status, error: `GitHub API ${res.status}: ${msg}`.slice(0, 500) };
-  } catch (e) {
-    return { ok: false, httpStatus: 0, error: `请求失败: ${(e as Error).message}`.slice(0, 500) };
+      const res = await fetchFn(url, {
+        method: "POST",
+        headers: HEADERS(token),
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status === 204) return { ok: true, httpStatus: 204 };
+      let msg = await res.text();
+      try {
+        msg = (JSON.parse(msg) as { message?: string }).message ?? msg;
+      } catch { /* 保留原文 */ }
+      return { ok: false, httpStatus: res.status, error: `GitHub API ${res.status}: ${msg}`.slice(0, 500) };
+    } catch (e) {
+      return { ok: false, httpStatus: 0, error: `请求失败: ${(e as Error).message}`.slice(0, 500) };
+    }
+  };
+
+  let result = await once();
+  // 瞬时失败（网络抖动 / 429 / 5xx）重试一次。dispatch 是 POST，「请求已达
+  // GitHub 但响应丢失」时重试会重复触发一次——对定时任务通常无害（最坏多跑
+  // 一轮），换来的是一次抖动不至于丢掉整个调度周期。4xx 是明确失败不重试；
+  // 403 的限速窗口远大于重试间隔，重试同样没有意义，一并排除。
+  if (!result.ok && (result.httpStatus === 0 || result.httpStatus === 429 || result.httpStatus >= 500)) {
+    await new Promise((r) => setTimeout(r, retryDelayMs));
+    result = await once();
   }
+  return result;
 }
 
 export async function verifyGithubToken(

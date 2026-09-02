@@ -6,7 +6,15 @@ import type { Env, JobRow } from "../types";
 const jobRoutes = new Hono<{ Bindings: Env }>();
 
 const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
-const WORKFLOW_RE = /^[\w.-]+$/;
+// workflow 文件名（可含子目录，如 build/test.yml，也接受数字 ID）与分支/标签 ref
+// （feature/x、release/v1.0、refs/heads/main、40 位 SHA）的公共字符集：\w . / -。
+// 旧版用 [\w.-]+ 把斜杠挡在了外面，feature/x 这类最常见的分支名直接 400。
+const SLUG_RE = /^(?!-)[\w.\-/]+(?<![\/.])$/;
+
+/** git check-ref-format 的关键规则子集：不以 - 或 . 开头、不含 ..、不以 .lock 结尾。 */
+function isValidRef(ref: string): boolean {
+  return SLUG_RE.test(ref) && !ref.startsWith(".") && !ref.includes("..") && !ref.endsWith(".lock");
+}
 
 type JobInput = {
   name: string;
@@ -35,9 +43,9 @@ function validateJobBody(body: Record<string, unknown>): { ok: true; data: JobIn
   let ref: string | null = null;
   if (trigger_type === "workflow_dispatch") {
     workflow_id = typeof body.workflow_id === "string" ? body.workflow_id.trim() : "";
-    if (!WORKFLOW_RE.test(workflow_id)) return { ok: false, error: "请填写 workflow 文件名（如 run.yml）或 workflow ID" };
+    if (!SLUG_RE.test(workflow_id)) return { ok: false, error: "请填写 workflow 文件名（如 run.yml）或 workflow ID" };
     ref = typeof body.ref === "string" && body.ref.trim() ? body.ref.trim() : "main";
-    if (!WORKFLOW_RE.test(ref)) return { ok: false, error: "分支名非法" };
+    if (!isValidRef(ref)) return { ok: false, error: "分支 / 标签名非法（如 main、feature/x、v1.0）" };
   } else {
     event_type = typeof body.event_type === "string" ? body.event_type.trim() : "";
     if (!event_type || event_type.length > 100) return { ok: false, error: "请填写 repository_dispatch 事件类型" };
@@ -116,8 +124,13 @@ jobRoutes.post("/:id/toggle", async (c) => {
   const newEnabled = job.enabled === 1 ? 0 : 1;
   let nextRun = job.next_run_at;
   if (newEnabled === 1) {
-    const sv = validateSchedule(JSON.parse(job.schedule_json));
-    if (sv.ok) nextRun = computeNextRun(sv.rule, Date.now());
+    // schedule_json 可能因历史数据损坏而无法解析，JSON.parse 直接抛出去就是 500。
+    // 这里吞掉异常、沿用原 next_run_at：启用本身照常生效，调度器下一轮发现规则
+    // 损坏会按既有逻辑跳过并推进冷却时间，任务列表里的「下次运行」暂时失真。
+    try {
+      const sv = validateSchedule(JSON.parse(job.schedule_json));
+      if (sv.ok) nextRun = computeNextRun(sv.rule, Date.now());
+    } catch { /* 规则损坏，保持原值 */ }
   }
   await c.env.DB.prepare("UPDATE jobs SET enabled=?, next_run_at=?, updated_at=? WHERE id=?")
     .bind(newEnabled, nextRun, Date.now(), id).run();
@@ -133,8 +146,11 @@ jobRoutes.post("/:id/trigger", async (c) => {
 
 jobRoutes.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  await c.env.DB.prepare("DELETE FROM runs WHERE job_id=?").bind(id).run();
-  await c.env.DB.prepare("DELETE FROM jobs WHERE id=?").bind(id).run();
+  // batch 是原子事务：原先两条顺序执行，中间失败会留下「runs 删了、job 还在」的半删状态
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM runs WHERE job_id=?").bind(id),
+    c.env.DB.prepare("DELETE FROM jobs WHERE id=?").bind(id),
+  ]);
   return c.json({ ok: true, data: null });
 });
 

@@ -15,5 +15,15 @@
       "binding": "DB",
       "database_name": "cronjob_db"
     }
+  ],
+  // 登录限速（src/server/routes/auth.ts）：按 IP 每 60 秒 5 次失败。
+  // simple 变体的 period 只支持 10 / 60 秒，做不了 10 分钟窗口；且只在登录
+  // 失败路径上调用 limit()，成功登录不消耗配额，语义见路由内注释。
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 5, "period": 60 }
+    }
   ]
 }
