@@ -7,3 +7,4 @@ dist/
 /test/
 /vitest.config.ts
 .superpowers/
+.zcode/
