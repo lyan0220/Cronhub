@@ -72,18 +72,29 @@ export default function ScheduleEditor({ value, onChange, timezone, onTimezoneCh
       </div>
 
       {value.type === "cron" ? (
-        <>
-          <Input aria-label="cron 表达式" className="font-mono" value={value.expr ?? ""} invalid={!!err}
-            placeholder="分 时 日 月 周，如 30 3 * * *"
-            onChange={e => onChange({ ...value, expr: e.target.value })} />
-          {/* cron 按所选时区的墙上时间计算；间隔任务与时区无关，不显示。
-              用标准描边样式：时区是独立控件，不能像间隔组那样靠外层容器画框 */}
-          <div className="mt-3 flex items-center gap-2 text-xs text-fg-muted">
-            <span className="shrink-0">生效时区</span>
-            {/* flex-1 占满行内剩余宽度：时区名带偏移标注很长（如
-                America/Los_Angeles（UTC-7 · 当前）），固定宽度会截断显示 */}
+        // 连体输入组：左右均分——cron 表达式 | 「时区」标注 + 下拉。与间隔模式
+        // 的连体样式同构（一根边框、发丝分隔线、focus-within 整体强调）。
+        // 「时区」为纯视觉标注（aria-hidden），读屏走下拉自身的 aria-label。
+        <div className={cx(
+          "flex items-stretch overflow-hidden rounded-lg border border-border bg-panel",
+          "transition-colors duration-fast ease-smooth",
+          "focus-within:border-fg/60 focus-within:ring-2 focus-within:ring-fg/12",
+        )}>
+          <div className="min-w-0 flex-1">
+            <Input bare aria-label="cron 表达式" className="font-mono" value={value.expr ?? ""}
+              placeholder="分 时 日 月 周，如 30 3 * * *"
+              onChange={e => onChange({ ...value, expr: e.target.value })} />
+          </div>
+          <Divider />
+          {/* 右半：内嵌「Tz」标注 + 下拉。items-center 让下拉保持自然高度、
+              文字垂直居中（items-stretch 会把 select 拉高导致文字贴顶）。
+              标注为纯视觉（aria-hidden），读屏走下拉自身的 aria-label。 */}
+          <div className="flex min-w-0 flex-1 items-center">
+            <span aria-hidden className="shrink-0 whitespace-nowrap pl-2.5 pr-1 text-xs text-fg-subtle">
+              Tz
+            </span>
             <div className="min-w-0 flex-1">
-              <Select aria-label="生效时区" value={timezone || "UTC"}
+              <Select bare aria-label="生效时区" className="truncate" value={timezone || "UTC"}
                 onChange={e => onTimezoneChange(e.target.value)}>
                 {timezoneOptions(timezone).map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -91,7 +102,7 @@ export default function ScheduleEditor({ value, onChange, timezone, onTimezoneCh
               </Select>
             </div>
           </div>
-        </>
+        </div>
       ) : (
         // 连体输入组：外层只画一圈边框和一份 focus-within 强调，内部是裸控件 +
         // 发丝分隔线。三个独立描边控件并排的割裂感来自「三圈边框」，合并后视觉上
