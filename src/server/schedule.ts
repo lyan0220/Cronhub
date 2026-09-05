@@ -8,6 +8,16 @@ export type ScheduleRule =
 
 export const UNIT_MS: Record<Unit, number> = { m: 60_000, h: 3_600_000, d: 86_400_000 };
 
+/** IANA 时区名是否可用（运行时全 ICU 下等价于该时区是否存在） */
+export function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function validateSchedule(input: unknown): { ok: true; rule: ScheduleRule } | { ok: false; error: string } {
   if (typeof input !== "object" || input === null) return { ok: false, error: "调度规则必须是 JSON 对象" };
   const r = input as Record<string, unknown>;
@@ -39,8 +49,8 @@ export function validateSchedule(input: unknown): { ok: true; rule: ScheduleRule
   return { ok: false, error: "调度类型必须是 cron / interval" };
 }
 
-export function computeNextRun(rule: ScheduleRule, plannedAt: number, rand: () => number = Math.random): number {
-  if (rule.type === "cron") return nextCronTime(rule.expr, plannedAt);
+export function computeNextRun(rule: ScheduleRule, plannedAt: number, rand: () => number = Math.random, tz?: string): number {
+  if (rule.type === "cron") return nextCronTime(rule.expr, plannedAt, tz);
   const ms = UNIT_MS[rule.unit];
   if (rule.mode === "fixed") return plannedAt + rule.value * ms;
   return plannedAt + (rule.min + rand() * (rule.max - rule.min)) * ms;
@@ -54,11 +64,11 @@ export function describeSchedule(rule: ScheduleRule): string {
   return `每 ${rule.min}~${rule.max} ${UNIT_NAME[rule.unit]}（随机）`;
 }
 
-export function previewRuns(rule: ScheduleRule, count = 5): number[] {
+export function previewRuns(rule: ScheduleRule, count = 5, tz?: string): number[] {
   const out: number[] = [];
   let t = Date.now();
   for (let i = 0; i < count; i++) {
-    t = computeNextRun(rule, t);
+    t = computeNextRun(rule, t, Math.random, tz);
     out.push(t);
   }
   return out;
