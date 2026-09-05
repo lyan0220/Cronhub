@@ -108,7 +108,7 @@ export default function Dashboard() {
           等宽比主次分栏更对称，数据量不对等时也不会一头重一头轻；
           窄屏退化为上下两段（先过去后未来）。 */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="min-w-0">
+        <section className="@container min-w-0">
           <h2 className="mb-3 text-sm font-medium">最近运行</h2>
 
           {runsError ? (
@@ -134,15 +134,16 @@ export default function Dashboard() {
               {runs.map(r => {
                 const failed = r.status === "failed";
                 return (
-                  // 四栏表格样式：名称 / 来源 / 绝对时间 / 相对时间，各占一栏跨行对齐
-                  <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
+                  // 四栏表格样式：名称 / 来源 / 绝对时间 / 相对时间，各占一栏跨行对齐；
+                  // 面板放不下（容器 <md）时来源列隐藏，名称独占弹性空间不被挤压
+                  <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto_5rem_4rem] @max-md:grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
                     <div className="flex min-w-0 items-center gap-1.5">
                       {failed
                         ? <CircleX className="size-4 shrink-0 text-danger" />
                         : <CircleCheck className="size-4 shrink-0 text-success" />}
                       <span className="min-w-0 truncate font-medium">{r.job_name ?? `任务#${r.job_id}`}</span>
                     </div>
-                    <span className="whitespace-nowrap text-xs text-fg-subtle">{r.source === "manual" ? "手动" : "定时"}</span>
+                    <span className="@max-md:hidden whitespace-nowrap text-xs text-fg-subtle">{r.source === "manual" ? "手动" : "定时"}</span>
                     <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShort(r.triggered_at)}</span>
                     <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle">{relativeTime(r.triggered_at)}</span>
                   </div>
@@ -156,7 +157,7 @@ export default function Dashboard() {
           )}
         </section>
 
-        <section className="min-w-0">
+        <section className="@container min-w-0">
           <h2 className="mb-3 text-sm font-medium">即将运行</h2>
 
           {jobsError ? (
@@ -183,13 +184,14 @@ export default function Dashboard() {
             <Card className="divide-y divide-border/60">
               {upcoming.map(j => (
                 // 四栏表格样式：名称 / 调度规则 / 绝对时间 / 相对时间。调度栏固定宽度，
-                // 各行左边缘对齐（auto 会随内容缩放，短文案会贴到时间列形成右对齐感）
-                <div key={j.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,11rem)_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
+                // 各行左边缘对齐（auto 会随内容缩放，短文案会贴到时间列形成右对齐感）。
+                // 面板放不下（容器 <md）时调度栏隐藏，否则长调度描述会把任务名挤没
+                <div key={j.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,11rem)_5rem_4rem] @max-md:grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <Clock className="size-4 shrink-0 text-fg-subtle" />
                     <span className="min-w-0 truncate font-medium">{j.name}</span>
                   </div>
-                  <span className="min-w-0 truncate text-xs text-fg-subtle">{describeLocal(parseSchedule(j.schedule_json))}</span>
+                  <span className="@max-md:hidden min-w-0 truncate text-xs text-fg-subtle">{describeLocal(parseSchedule(j.schedule_json))}</span>
                   <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShort(j.next_run_at)}</span>
                   <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle">{untilText(j.next_run_at)}</span>
                 </div>

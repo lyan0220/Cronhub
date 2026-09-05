@@ -12,7 +12,7 @@ export default function ThemeToggle() {
   const { pref, setPref } = useTheme();
   return (
     <div role="radiogroup" aria-label="主题"
-      className="flex gap-0.5 rounded-lg border border-border bg-surface p-0.5">
+      className="flex gap-1 rounded-lg border border-border bg-surface p-1">
       {OPTIONS.map(({ value, label, Icon }) => (
         <button
           key={value}
@@ -23,7 +23,7 @@ export default function ThemeToggle() {
           title={label}
           onClick={() => setPref(value)}
           className={cx(
-            "flex flex-1 items-center justify-center rounded-md py-1.5",
+            "flex flex-1 items-center justify-center rounded-md px-3 py-1.5",
             "transition-colors duration-fast ease-smooth",
             focusRing,
             // 与 Segmented 同一套选中语言：fg 浅底，不用白底+阴影
