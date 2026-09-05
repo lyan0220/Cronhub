@@ -6,6 +6,10 @@ import type { Env } from "./types";
 export const KEY_PASSWORD_HASH = "admin_password_hash";
 export const KEY_SESSION_EPOCH = "session_epoch";
 export const KEY_RUNS_RETENTION = "runs_retention_days";
+/** 调度器心跳：scheduled 入口每轮写入，仪表盘据此展示调度器是否存活 */
+export const KEY_SCHEDULER_HEARTBEAT = "scheduler_last_run_at";
+/** 连续失败自动停用阈值（0 = 不自动停用） */
+export const KEY_AUTO_PAUSE_THRESHOLD = "notify_auto_pause_threshold";
 /** 运行记录保留期默认值（天），与调度器/清理接口的兜底一致 */
 export const DEFAULT_RUN_RETENTION_DAYS = 90;
 
@@ -44,6 +48,16 @@ export async function setSetting(env: Env, key: string, value: string): Promise<
   await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)")
     .bind(key, value)
     .run();
+}
+
+/** 连续失败自动停用阈值；未配置/非法值收敛为 0（不自动停用） */
+export async function getAutoPauseThreshold(env: Env): Promise<number> {
+  try {
+    const v = Number(await getSetting(env, KEY_AUTO_PAUSE_THRESHOLD));
+    return Number.isInteger(v) && v >= 0 && v <= 100 ? v : 0;
+  } catch {
+    return 0; // D1 瞬时错误视同未开启，不阻断调度
+  }
 }
 
 export function invalidateAuthState(): void {

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { computeNextRun, validateSchedule, type ScheduleRule } from "../schedule";
+import { computeNextRun, isValidTimezone, validateSchedule, type ScheduleRule } from "../schedule";
 import { triggerJobOnce } from "../scheduler";
 import type { Env, JobRow } from "../types";
 
@@ -16,6 +16,16 @@ function isValidRef(ref: string): boolean {
   return SLUG_RE.test(ref) && !ref.startsWith(".") && !ref.includes("..") && !ref.endsWith(".lock");
 }
 
+/** 校验所选通知渠道都存在（渠道可能被并发删除）；返回错误文案或 null */
+async function assertChannelsExist(env: Env, idsJson: string | null): Promise<string | null> {
+  if (!idsJson) return null;
+  const ids = JSON.parse(idsJson) as number[];
+  const rows = await env.DB.prepare("SELECT id FROM notify_channels").all<{ id: number }>();
+  const known = new Set((rows.results ?? []).map((r) => r.id));
+  const missing = ids.filter((id) => !known.has(id));
+  return missing.length ? `通知渠道不存在（id: ${missing.join(", ")}），请重新选择` : null;
+}
+
 type JobInput = {
   name: string;
   account_id: number;
@@ -25,6 +35,9 @@ type JobInput = {
   event_type: string | null;
   ref: string | null;
   inputs_json: string | null;
+  notify: number;
+  notify_channel_ids: string | null;
+  timezone: string | null;
 };
 
 function validateJobBody(body: Record<string, unknown>): { ok: true; data: JobInput; schedule: ScheduleRule; enabled: number } | { ok: false; error: string } {
@@ -66,7 +79,20 @@ function validateJobBody(body: Record<string, unknown>): { ok: true; data: JobIn
   if (!sv.ok) return { ok: false, error: sv.error };
 
   const enabled = body.enabled === 0 || body.enabled === false ? 0 : 1;
-  return { ok: true, data: { name, account_id, repo, trigger_type, workflow_id, event_type, ref, inputs_json }, schedule: sv.rule, enabled };
+  // 失败通知默认关闭，需要显式开启
+  const notify = body.notify === 1 || body.notify === true ? 1 : 0;
+  // 失败通知渠道：数组（可多选）序列化为 JSON；缺省/空数组 = 全部渠道（NULL）
+  let notify_channel_ids: string | null = null;
+  if (Array.isArray(body.notify_channel_ids)) {
+    const ids = [...new Set(body.notify_channel_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    notify_channel_ids = ids.length ? JSON.stringify(ids) : null;
+  }
+  let timezone: string | null = null;
+  if (typeof body.timezone === "string" && body.timezone.trim()) {
+    timezone = body.timezone.trim();
+    if (!isValidTimezone(timezone)) return { ok: false, error: "时区名称无效（应为 IANA 时区，如 Asia/Shanghai）" };
+  }
+  return { ok: true, data: { name, account_id, repo, trigger_type, workflow_id, event_type, ref, inputs_json, notify, notify_channel_ids, timezone }, schedule: sv.rule, enabled };
 }
 
 jobRoutes.get("/", async (c) => {
@@ -82,14 +108,16 @@ jobRoutes.post("/", async (c) => {
   if (!v.ok) return c.json({ ok: false, error: v.error }, 400);
   const acc = await c.env.DB.prepare("SELECT id FROM accounts WHERE id=?").bind(v.data.account_id).first();
   if (!acc) return c.json({ ok: false, error: "所选账号不存在" }, 400);
+  const chErr = await assertChannelsExist(c.env, v.data.notify_channel_ids);
+  if (chErr) return c.json({ ok: false, error: chErr }, 400);
 
   const now = Date.now();
-  const next_run_at = computeNextRun(v.schedule, now);
+  const next_run_at = computeNextRun(v.schedule, now, Math.random, v.data.timezone ?? undefined);
   const r = await c.env.DB.prepare(
-    "INSERT INTO jobs (name, account_id, repo, trigger_type, workflow_id, event_type, ref, inputs_json, schedule_json, enabled, next_run_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO jobs (name, account_id, repo, trigger_type, workflow_id, event_type, ref, inputs_json, schedule_json, notify, notify_channel_ids, timezone, enabled, next_run_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
   )
     .bind(v.data.name, v.data.account_id, v.data.repo, v.data.trigger_type, v.data.workflow_id, v.data.event_type,
-      v.data.ref, v.data.inputs_json, JSON.stringify(v.schedule), v.enabled, next_run_at, now, now)
+      v.data.ref, v.data.inputs_json, JSON.stringify(v.schedule), v.data.notify, v.data.notify_channel_ids, v.data.timezone, v.enabled, next_run_at, now, now)
     .run();
   const job = await c.env.DB.prepare("SELECT * FROM jobs WHERE id=?").bind(r.meta.last_row_id).first<JobRow>();
   return c.json({ ok: true, data: job }, 201);
@@ -104,14 +132,16 @@ jobRoutes.put("/:id", async (c) => {
   if (!v.ok) return c.json({ ok: false, error: v.error }, 400);
   const acc = await c.env.DB.prepare("SELECT id FROM accounts WHERE id=?").bind(v.data.account_id).first();
   if (!acc) return c.json({ ok: false, error: "所选账号不存在" }, 400);
+  const chErr = await assertChannelsExist(c.env, v.data.notify_channel_ids);
+  if (chErr) return c.json({ ok: false, error: chErr }, 400);
 
   const now = Date.now();
-  const next_run_at = computeNextRun(v.schedule, now);
+  const next_run_at = computeNextRun(v.schedule, now, Math.random, v.data.timezone ?? undefined);
   await c.env.DB.prepare(
-    "UPDATE jobs SET name=?, account_id=?, repo=?, trigger_type=?, workflow_id=?, event_type=?, ref=?, inputs_json=?, schedule_json=?, enabled=?, next_run_at=?, updated_at=? WHERE id=?",
+    "UPDATE jobs SET name=?, account_id=?, repo=?, trigger_type=?, workflow_id=?, event_type=?, ref=?, inputs_json=?, schedule_json=?, notify=?, notify_channel_ids=?, timezone=?, enabled=?, next_run_at=?, updated_at=? WHERE id=?",
   )
     .bind(v.data.name, v.data.account_id, v.data.repo, v.data.trigger_type, v.data.workflow_id, v.data.event_type,
-      v.data.ref, v.data.inputs_json, JSON.stringify(v.schedule), v.enabled, next_run_at, now, id)
+      v.data.ref, v.data.inputs_json, JSON.stringify(v.schedule), v.data.notify, v.data.notify_channel_ids, v.data.timezone, v.enabled, next_run_at, now, id)
     .run();
   const updated = await c.env.DB.prepare("SELECT * FROM jobs WHERE id=?").bind(id).first<JobRow>();
   return c.json({ ok: true, data: updated });
@@ -132,7 +162,9 @@ jobRoutes.post("/:id/toggle", async (c) => {
       if (sv.ok) nextRun = computeNextRun(sv.rule, Date.now());
     } catch { /* 规则损坏，保持原值 */ }
   }
-  await c.env.DB.prepare("UPDATE jobs SET enabled=?, next_run_at=?, updated_at=? WHERE id=?")
+  // 手动启停顺带清零 fail_streak：启停都是管理员在场操作，旧计数对下一次
+  // 无人值守周期没有意义，也让「enabled=0 且 fail_streak>0」唯一表示自动停用。
+  await c.env.DB.prepare("UPDATE jobs SET enabled=?, next_run_at=?, updated_at=?, fail_streak=0 WHERE id=?")
     .bind(newEnabled, nextRun, Date.now(), id).run();
   return c.json({ ok: true, data: { enabled: newEnabled, next_run_at: nextRun } });
 });

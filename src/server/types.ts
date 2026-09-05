@@ -37,6 +37,14 @@ export type JobRow = {
   enabled: number;
   next_run_at: number;
   last_run_at: number | null;
+  /** 失败告警开关：1 = 推送 webhook，0 = 静默 */
+  notify: number;
+  /** 失败通知发送渠道 id 的 JSON 数组；NULL = 全部渠道（仅 notify=1 时有意义） */
+  notify_channel_ids: string | null;
+  /** 定时调度连续失败计数；成功清零；手动启停时重置 */
+  fail_streak: number;
+  /** cron 计算时区（IANA 名称）；null = UTC */
+  timezone: string | null;
   created_at: number;
   updated_at: number;
 };
