@@ -4,11 +4,12 @@ import { get, post } from "../api";
 import type { Stats } from "../types";
 import { Menu } from "../ui";
 import {
-  ChevronDown, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, UserRound, Users, X,
+  BellRing, ChevronDown, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, UserRound, Users, X,
   type LucideIcon,
 } from "../ui/icons";
 import { cx, focusRing } from "../ui/styles";
 import { Logo } from "./Logo";
+import NotifyDialog from "./NotifyDialog";
 import PasswordDialog from "./PasswordDialog";
 import ThemeToggle from "./ThemeToggle";
 
@@ -63,6 +64,7 @@ export default function Layout() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
   const drawerRef = useRef<HTMLDialogElement>(null);
 
   // 路由切换就重新拉计数。alive 标记有两个作用：快速连切路由时先发后到的旧响应
@@ -131,6 +133,7 @@ export default function Layout() {
           </>
         }
         items={[
+          { label: "通知设置", icon: <BellRing className="size-3.5" />, onSelect: () => setNotifyOpen(true) },
           { label: "修改密码", icon: <KeyRound className="size-3.5" />, onSelect: () => setPwOpen(true) },
           { label: "退出登录", icon: <LogOut className="size-3.5" />, onSelect: () => void logout(), tone: "danger" },
         ]}
@@ -189,6 +192,7 @@ export default function Layout() {
       </div>
 
       {pwOpen && <PasswordDialog open onClose={() => setPwOpen(false)} />}
+      {notifyOpen && <NotifyDialog open onClose={() => setNotifyOpen(false)} />}
     </div>
   );
 }

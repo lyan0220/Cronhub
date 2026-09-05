@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { del, errText, get, post, put } from "../../api";
 import PageHeader from "../../components/PageHeader";
 import { useToast } from "../../components/Toast";
-import type { Account, Job, Run } from "../../types";
+import type { Account, Channel, Job, Run } from "../../types";
 import { Button, EmptyState, Segmented, Select, Skeleton, SkeletonCard, useConfirm } from "../../ui";
 import { cx } from "../../ui/styles";
 import { Inbox, Plus } from "../../ui/icons";
@@ -11,6 +11,7 @@ import JobForm, { EMPTY_FORM, type JobFormData } from "./JobForm";
 import JobRow from "./JobRow";
 import { parseSchedule } from "./schedule";
 import { useAlive } from "../../utils/useAlive";
+import { useAutoRefresh } from "../../utils/useAutoRefresh";
 
 type ViewMode = "card" | "list";
 
@@ -33,6 +34,7 @@ export default function Jobs() {
   const confirm = useConfirm();
   const [list, setList] = useState<Job[] | null>(null); // null = 首屏加载中
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [lastRuns, setLastRuns] = useState<Record<number, Run>>({});
   const [form, setForm] = useState<JobFormData | null>(null);
   const [snapshot, setSnapshot] = useState<JobFormData | null>(null);
@@ -58,7 +60,11 @@ export default function Jobs() {
   useEffect(() => {
     load().catch(e => toast(errText(e), "err"));
     get<Account[]>("/api/accounts").then(a => { if (alive.current) setAccounts(a); }).catch(() => {});
+    get<{ channels: Channel[] }>("/api/notify/channels").then(d => { if (alive.current) setChannels(d.channels); }).catch(() => {});
   }, []);
+
+  // 自动刷新任务列表与最近运行（60 秒）；表单抽屉打开时暂停，避免与表单快照竞态
+  useAutoRefresh(() => { load().catch(() => {}); }, 60_000, !form);
 
   function open(data: JobFormData) {
     setForm(data);
@@ -66,11 +72,17 @@ export default function Jobs() {
   }
 
   function edit(j: Job) {
+    let channelIds: number[] | null = null;
+    try {
+      const parsed = JSON.parse(j.notify_channel_ids ?? "null") as unknown;
+      channelIds = Array.isArray(parsed) ? parsed.filter((x): x is number => typeof x === "number") : null;
+    } catch { /* 损坏按全部渠道处理 */ }
     open({
       id: j.id, name: j.name, account_id: j.account_id, repo: j.repo,
       trigger_type: j.trigger_type, workflow_id: j.workflow_id ?? "",
       event_type: j.event_type ?? "", ref: j.ref ?? "main",
       inputs_json: j.inputs_json ?? "", schedule: parseSchedule(j.schedule_json),
+      notify: j.notify ?? 0, channelIds, timezone: j.timezone ?? "",
     });
   }
 
@@ -78,9 +90,11 @@ export default function Jobs() {
     if (!form) return;
     setBusy(true);
     // 表单不含 enabled，而后端缺省会置为 1；编辑时必须回传原有启用状态，
-    // 否则停用的任务会被静默重新启用。
+    // 否则停用的任务会被静默重新启用。channelIds 是表单内部命名，提交时映射为
+    // 服务端的 notify_channel_ids（JSON 数组，null = 全部渠道）。
     const editing = form.id ? list?.find(j => j.id === form.id) : undefined;
-    const body = { ...form, enabled: editing ? editing.enabled : 1 };
+    const { channelIds, ...rest } = form;
+    const body = { ...rest, notify_channel_ids: channelIds, enabled: editing ? editing.enabled : 1 };
     try {
       if (form.id) await put(`/api/jobs/${form.id}`, body);
       else await post("/api/jobs", body);
@@ -230,6 +244,7 @@ export default function Jobs() {
           open
           form={form}
           accounts={accounts}
+          channels={channels}
           busy={busy}
           dirty={dirty}
           onChange={setForm}

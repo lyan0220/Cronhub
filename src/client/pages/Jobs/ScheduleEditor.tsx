@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { errText, get } from "../../api";
 import type { Schedule } from "../../types";
 import { Input, Segmented, Select, cx } from "../../ui";
-import { fmtTime, relativeTime } from "../../utils/time";
-import { EMPTY_SCHEDULE } from "./schedule";
+import { fmtTimeTz, relativeTime } from "../../utils/time";
+import { EMPTY_SCHEDULE, timezoneOptions } from "./schedule";
 
 type Props = {
   value: Schedule;
   onChange: (s: Schedule) => void;
+  /** cron 生效时区；空串 = UTC */
+  timezone: string;
+  onTimezoneChange: (tz: string) => void;
   /** 把 /api/cron/preview 的报错上报给表单，用于禁用保存按钮 */
   onError: (msg: string | null) => void;
 };
@@ -25,18 +28,23 @@ function Divider() {
   return <div aria-hidden className="w-px shrink-0 bg-border" />;
 }
 
-export default function ScheduleEditor({ value, onChange, onError }: Props) {
+export default function ScheduleEditor({ value, onChange, timezone, onTimezoneChange, onError }: Props) {
   const [preview, setPreview] = useState<{ ms: number; text: string }[]>([]);
   const [err, setErr] = useState("");
+
+  // 预览与展示统一用「生效时区」：cron 任务显示所选时区的墙上时间（旧任务空值 = UTC），
+  // 不再换算成本机时间——选了什么时区就看到什么时间，选择才明确。
+  const effTz = value.type === "cron" ? (timezone || "UTC") : "";
 
   const key = JSON.stringify(value);
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
+        const tzParam = effTz ? `&tz=${encodeURIComponent(effTz)}` : "";
         const data = await get<{ times: number[] }>(
-          `/api/cron/preview?rule=${encodeURIComponent(key)}`,
+          `/api/cron/preview?rule=${encodeURIComponent(key)}${tzParam}`,
         );
-        setPreview(data.times.map(ms => ({ ms, text: fmtTime(ms) })));
+        setPreview(data.times.map(ms => ({ ms, text: fmtTimeTz(ms, effTz || null) })));
         setErr("");
         onError(null);
       } catch (e) {
@@ -48,7 +56,7 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
     return () => clearTimeout(t);
     // 依赖只写 key。onError 是父组件每次渲染新建的内联函数，
     // 加进依赖会让防抖计时器被反复重建，等效于取消防抖。
-  }, [key]);
+  }, [key, effTz]);
 
   return (
     <div>
@@ -64,9 +72,26 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
       </div>
 
       {value.type === "cron" ? (
-        <Input aria-label="cron 表达式" className="font-mono" value={value.expr ?? ""} invalid={!!err}
-          placeholder="分 时 日 月 周（UTC），如 30 3 * * *"
-          onChange={e => onChange({ ...value, expr: e.target.value })} />
+        <>
+          <Input aria-label="cron 表达式" className="font-mono" value={value.expr ?? ""} invalid={!!err}
+            placeholder="分 时 日 月 周，如 30 3 * * *"
+            onChange={e => onChange({ ...value, expr: e.target.value })} />
+          {/* cron 按所选时区的墙上时间计算；间隔任务与时区无关，不显示。
+              用标准描边样式：时区是独立控件，不能像间隔组那样靠外层容器画框 */}
+          <div className="mt-3 flex items-center gap-2 text-xs text-fg-muted">
+            <span className="shrink-0">生效时区</span>
+            {/* flex-1 占满行内剩余宽度：时区名带偏移标注很长（如
+                America/Los_Angeles（UTC-7 · 当前）），固定宽度会截断显示 */}
+            <div className="min-w-0 flex-1">
+              <Select aria-label="生效时区" value={timezone || "UTC"}
+                onChange={e => onTimezoneChange(e.target.value)}>
+                {timezoneOptions(timezone).map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </>
       ) : (
         // 连体输入组：外层只画一圈边框和一份 focus-within 强调，内部是裸控件 +
         // 发丝分隔线。三个独立描边控件并排的割裂感来自「三圈边框」，合并后视觉上
@@ -129,7 +154,9 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
           <p role="alert" className="text-danger">{err}</p>
         ) : (
           <div className="text-fg-muted">
-            <p className="mb-1.5">未来触发时间</p>
+            <p className="mb-1.5">
+              {value.type === "cron" ? `未来触发时间（${effTz}）` : "未来触发时间"}
+            </p>
             <ul className="space-y-1">
               {preview.map(p => (
                 <li key={p.ms} className="flex items-baseline justify-between gap-3 font-mono tabular-nums">
@@ -138,9 +165,6 @@ export default function ScheduleEditor({ value, onChange, onError }: Props) {
                 </li>
               ))}
             </ul>
-            {value.type === "cron" && (
-              <p className="mt-2">支持 <code>*</code>、<code>*/n</code>、<code>a-b</code>、逗号列表。按 UTC 计算。</p>
-            )}
           </div>
         )}
       </div>

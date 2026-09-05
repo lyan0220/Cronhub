@@ -10,5 +10,6 @@ export {
   CircleCheck, CircleX, CircleAlert, LoaderCircle,
   // 领域
   GitBranch, Timer, ArrowRight, Inbox, KeyRound, LogOut, UserRound,
+  Activity, BellRing,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";

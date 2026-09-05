@@ -2,8 +2,8 @@ import { Badge, Switch, iconActionDanger, iconActionInfo, iconActionSuccess } fr
 import { LoaderCircle, Pencil, Play, Trash2 } from "../../ui/icons";
 import { cx } from "../../ui/styles";
 import type { Job, Run } from "../../types";
-import { fmtShort, relativeTime } from "../../utils/time";
-import { describeLocal, parseSchedule } from "./schedule";
+import { fmtShortTz, relativeTime } from "../../utils/time";
+import { describeLocal, displayTzOf, parseSchedule } from "./schedule";
 import { lastLine, LINE_CLS, LINE_ICON, targetOf } from "./shared";
 
 type Props = {
@@ -19,7 +19,9 @@ type Props = {
 
 /** 列表视图：表格行，信息密度高于卡片网格 */
 export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, onEdit, onRemove }: Props) {
-  const schedule = describeLocal(parseSchedule(job.schedule_json));
+  const scheduleJson = parseSchedule(job.schedule_json);
+  const schedule = describeLocal(scheduleJson, job.timezone);
+  const dTz = displayTzOf(scheduleJson, job.timezone); // 「下次运行」与调度列同时区
   const line = lastLine(job, lastRun);
   const LineIcon = line && LINE_ICON[line.tone];
 
@@ -40,7 +42,7 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
         <div className="text-fg-muted">{schedule}</div>
         {job.enabled === 1 ? (
           <div className="mt-0.5 tabular-nums text-fg-muted">
-            下次 {fmtShort(job.next_run_at)}{" "}
+            下次 {fmtShortTz(job.next_run_at, dTz)}{" "}
             <span className="text-fg-subtle">{relativeTime(job.next_run_at)}</span>
           </div>
         ) : (
@@ -58,7 +60,14 @@ export default function JobRow({ job, lastRun, triggering, onToggle, onTrigger, 
         )}
       </td>
       <td className="p-3 text-center">
-        <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
+        {/* fail_streak>0 且停用 = 调度器自动停的（手动启停会清零计数） */}
+        {job.enabled === 1 ? (
+          <Badge tone="success">启用</Badge>
+        ) : (job.fail_streak ?? 0) > 0 ? (
+          <Badge tone="warn">已自动暂停</Badge>
+        ) : (
+          <Badge tone="neutral">停用</Badge>
+        )}
       </td>
       <td className="p-3">
         <div className="flex justify-center">

@@ -7,6 +7,23 @@ export type Account = {
   last_verified_at: number | null;
 };
 
+/** 通知渠道（Webhook 目标），在「账户 → 通知设置」里管理 */
+export type Channel = {
+  id: number;
+  name: string;
+  type: "wecom" | "feishu" | "telegram" | "bark" | "generic";
+  url: string;
+};
+
+/** 渠道类型的中文标签（表单多选列表与渠道管理共用） */
+export const CHANNEL_TYPE_LABEL: Record<Channel["type"], string> = {
+  wecom: "企业微信",
+  feishu: "飞书",
+  telegram: "Telegram",
+  bark: "Bark",
+  generic: "通用 JSON",
+};
+
 export type Schedule = {
   type: "cron" | "interval";
   expr?: string;
@@ -32,6 +49,14 @@ export type Job = {
   enabled: number;
   next_run_at: number;
   last_run_at: number | null;
+  /** 失败告警推送开关：1 = 推送，0 = 静默 */
+  notify: number;
+  /** 失败通知渠道 id 的 JSON 数组；null = 全部渠道（仅 notify=1 时有意义） */
+  notify_channel_ids: string | null;
+  /** 定时调度连续失败次数；> 0 且停用即为「已自动暂停」 */
+  fail_streak: number;
+  /** cron 计算时区（IANA 名称）；null/空 = UTC */
+  timezone: string | null;
 };
 
 export type Run = {

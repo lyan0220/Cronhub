@@ -1,9 +1,12 @@
-import { useState, type ReactNode } from "react";
-import type { Account, Schedule } from "../../types";
-import { Button, Drawer, Field, Input, Segmented, Select, Textarea } from "../../ui";
+import { useEffect, useState, type ReactNode } from "react";
+import { errText, get } from "../../api";
+import { CHANNEL_TYPE_LABEL, type Account, type Channel, type Schedule } from "../../types";
+import { Badge, Button, Checkbox, Drawer, Field, Input, Segmented, Select, Switch, Textarea } from "../../ui";
 import { validateInputsJson, validateRepo } from "../../utils/validate";
-import { EMPTY_SCHEDULE } from "./schedule";
+import { EMPTY_SCHEDULE, LOCAL_TZ } from "./schedule";
 import ScheduleEditor from "./ScheduleEditor";
+
+type WorkflowItem = { id: string; name: string; path: string; state: string };
 
 export type JobFormData = {
   id?: number;
@@ -16,12 +19,16 @@ export type JobFormData = {
   ref: string;
   inputs_json: string;
   schedule: Schedule;
+  notify: number;
+  /** 失败通知渠道多选；null = 全部渠道（含以后新增的） */
+  channelIds: number[] | null;
+  timezone: string;
 };
 
 export const EMPTY_FORM: JobFormData = {
   name: "", account_id: 0, repo: "", trigger_type: "workflow_dispatch",
   workflow_id: "", event_type: "", ref: "main", inputs_json: "",
-  schedule: EMPTY_SCHEDULE,
+  schedule: EMPTY_SCHEDULE, notify: 0, channelIds: null, timezone: LOCAL_TZ,
 };
 
 type Key = "name" | "account_id" | "repo" | "workflow_id" | "event_type" | "inputs_json";
@@ -58,6 +65,7 @@ type Props = {
   open: boolean;
   form: JobFormData;
   accounts: Account[];
+  channels: Channel[];
   busy: boolean;
   /** 由父组件对比快照算出，交给 Drawer 决定是否二次确认 */
   dirty: boolean;
@@ -67,7 +75,7 @@ type Props = {
 };
 
 export default function JobForm({
-  open, form, accounts, busy, dirty, onChange, onClose, onSubmit,
+  open, form, accounts, channels, busy, dirty, onChange, onClose, onSubmit,
 }: Props) {
   const [touched, setTouched] = useState<Partial<Record<Key, boolean>>>({});
   const [schedErr, setSchedErr] = useState<string | null>(null);
@@ -78,11 +86,41 @@ export default function JobForm({
   const touch = (k: Key) => () => setTouched(t => ({ ...t, [k]: true }));
   const err = (k: Key) => (touched[k] ? errors[k] : null);
 
+  // ---- workflow 列表：账号 + 仓库就绪后防抖拉取，失败退回手动输入 ----
+  const [workflows, setWorkflows] = useState<WorkflowItem[] | null>(null);
+  const [wfErr, setWfErr] = useState("");
+  const [manualWorkflow, setManualWorkflow] = useState(false);
+  const repoReady = form.trigger_type === "workflow_dispatch" && form.account_id > 0 && validateRepo(form.repo) === null;
+
+  useEffect(() => {
+    if (!repoReady) { setWorkflows(null); setWfErr(""); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      try {
+        const d = await get<{ workflows: WorkflowItem[] }>(
+          `/api/github/workflows?account_id=${form.account_id}&repo=${encodeURIComponent(form.repo.trim())}`,
+        );
+        if (alive) { setWorkflows(d.workflows); setWfErr(""); }
+      } catch (e) {
+        if (alive) { setWorkflows(null); setWfErr(errText(e)); }
+      }
+    }, 300); // 与 cron 预览一致的防抖
+    return () => { alive = false; clearTimeout(t); };
+  }, [form.account_id, form.repo, repoReady]);
+
+  const wfFromList = !!workflows && workflows.some(w => w.id === form.workflow_id);
+
+  // 失败通知多选：全部渠道 = null；开关开着但一个渠道都没勾 → 阻止保存
+  const notifyError = form.notify === 1 && channels.length > 0
+    && form.channelIds !== null && form.channelIds.length === 0
+    ? "请至少勾选一个渠道，或勾选「全部渠道」"
+    : null;
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     // 点保存时把所有字段标记为已触碰，漏填的字段一次性全部亮红，而不是逐个试。
     setTouched(ALL_TOUCHED);
-    if (blocked) return;
+    if (blocked || notifyError) return;
     onSubmit();
   }
 
@@ -119,6 +157,47 @@ export default function JobForm({
                 onChange={e => set({ repo: e.target.value })} />
             )}
           </Field>
+          <div>
+            {/* 标题与开关同行，不嵌套 Field 避免出现两层「失败通知」文案；
+                校验错误只在这一处显示 */}
+            <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5">
+              <span className="text-sm text-fg">失败通知</span>
+              <Switch checked={form.notify === 1} label="失败通知"
+                onChange={v => set({ notify: v ? 1 : 0 })} />
+            </div>
+            {form.notify === 1 && (channels.length > 0 ? (
+              // 勾选范围：「全部」是快捷项（含以后新增的渠道）；
+              // 取消全部后可逐个勾选，一个都不勾时保存被阻止
+              <div className="mt-2 space-y-2 rounded-lg border border-border px-3 py-2.5">
+                <Checkbox checked={form.channelIds === null}
+                  onChange={on => set({ channelIds: on ? null : channels.map(ch => ch.id) })}>
+                  全部渠道
+                </Checkbox>
+                {form.channelIds !== null && (
+                  <div className="space-y-2 border-t border-border/60 pt-2">
+                    {channels.map(ch => (
+                      <Checkbox key={ch.id} checked={form.channelIds!.includes(ch.id)}
+                        onChange={on => set({
+                          channelIds: on
+                            ? [...form.channelIds!, ch.id]
+                            : form.channelIds!.filter(id => id !== ch.id),
+                        })}>
+                        <span className="inline-flex max-w-full items-center gap-2">
+                          <span className="truncate">{ch.name}</span>
+                          <Badge>{CHANNEL_TYPE_LABEL[ch.type]}</Badge>
+                        </span>
+                      </Checkbox>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-fg-subtle">
+                还没有通知渠道。到「账户 → 通知设置」添加后即可选择推送目标；自动停用不受此影响。
+              </p>
+            ))}
+            {notifyError && <p role="alert" className="mt-2 text-xs text-danger">{notifyError}</p>}
+          </div>
         </Group>
 
         <Group title="触发方式">
@@ -136,13 +215,51 @@ export default function JobForm({
 
           {form.trigger_type === "workflow_dispatch" ? (
             <>
-              <Field label="Workflow 文件名 / ID" error={err("workflow_id")}>
-                {({ id, describedBy }) => (
-                  <Input id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
-                    value={form.workflow_id} placeholder="run.yml" onBlur={touch("workflow_id")}
-                    onChange={e => set({ workflow_id: e.target.value })} />
-                )}
-              </Field>
+              {workflows && workflows.length > 0 && !manualWorkflow ? (
+                <Field label="选择 Workflow" hint="也可改为手动输入文件名或数字 ID"
+                  error={err("workflow_id")}>
+                  {({ id, describedBy }) => (
+                    <Select id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
+                      value={wfFromList ? form.workflow_id : ""}
+                      onBlur={touch("workflow_id")}
+                      onChange={e => {
+                        if (e.target.value === "") { setManualWorkflow(true); return; }
+                        set({ workflow_id: e.target.value });
+                      }}>
+                      <option value="">手动输入…</option>
+                      {!wfFromList && form.workflow_id && (
+                        <option value={form.workflow_id}>当前：{form.workflow_id}</option>
+                      )}
+                      {workflows.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name ? `${w.name}（${w.path}）` : w.path}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+              ) : (
+                <Field label="Workflow 文件名 / ID"
+                  hint="如 run.yml；也可填 workflow 数字 ID"
+                  error={err("workflow_id")}>
+                  {({ id, describedBy }) => (
+                    <Input id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
+                      value={form.workflow_id} placeholder="run.yml" onBlur={touch("workflow_id")}
+                      onChange={e => set({ workflow_id: e.target.value })} />
+                  )}
+                </Field>
+              )}
+              {workflows && workflows.length > 0 && manualWorkflow && (
+                <button type="button" onClick={() => setManualWorkflow(false)}
+                  className="-mt-2 mb-4 text-xs text-fg-muted underline-offset-2 hover:underline">
+                  改为从列表选择
+                </button>
+              )}
+              {!workflows && repoReady && (
+                <p className="-mt-2 mb-4 text-xs text-fg-subtle">
+                  {wfErr ? `无法获取 workflow 列表：${wfErr}，可手动输入文件名。` : "正在获取 workflow 列表…"}
+                </p>
+              )}
               <Field label="分支 / Ref">
                 {({ id }) => (
                   <Input id={id} value={form.ref}
@@ -171,7 +288,9 @@ export default function JobForm({
         </Group>
 
         <Group title="调度规则">
-          <ScheduleEditor value={form.schedule} onError={setSchedErr}
+          <ScheduleEditor value={form.schedule} timezone={form.timezone}
+            onTimezoneChange={tz => set({ timezone: tz })}
+            onError={setSchedErr}
             onChange={schedule => set({ schedule })} />
         </Group>
 

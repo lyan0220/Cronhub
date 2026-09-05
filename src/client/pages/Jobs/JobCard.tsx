@@ -1,8 +1,8 @@
 import { Badge, Card, Switch, iconActionDanger, iconActionInfo, iconActionSuccess } from "../../ui";
 import { ArrowRight, GitBranch, LoaderCircle, Pencil, Play, Timer, Trash2 } from "../../ui/icons";
 import type { Job, Run } from "../../types";
-import { fmtShort, relativeTime } from "../../utils/time";
-import { describeLocal, parseSchedule } from "./schedule";
+import { fmtShortTz, relativeTime } from "../../utils/time";
+import { describeLocal, displayTzOf, parseSchedule } from "./schedule";
 import { lastLine, LINE_CLS, LINE_ICON, targetOf } from "./shared";
 
 type Props = {
@@ -18,7 +18,9 @@ type Props = {
 
 /** 卡片视图：窄卡片进自适应网格，比通栏行卡片放得下更多列 */
 export default function JobCard({ job, lastRun, triggering, onToggle, onTrigger, onEdit, onRemove }: Props) {
-  const schedule = describeLocal(parseSchedule(job.schedule_json));
+  const scheduleJson = parseSchedule(job.schedule_json);
+  const schedule = describeLocal(scheduleJson, job.timezone);
+  const dTz = displayTzOf(scheduleJson, job.timezone); // 「下次运行」与调度列同时区
   const line = lastLine(job, lastRun);
   const LineIcon = line && LINE_ICON[line.tone];
 
@@ -44,7 +46,7 @@ export default function JobCard({ job, lastRun, triggering, onToggle, onTrigger,
         {job.enabled === 1 && (
           <span className="inline-flex items-center gap-1.5 tabular-nums">
             <ArrowRight className="size-3.5 shrink-0" aria-hidden />
-            下次 {fmtShort(job.next_run_at)}
+            下次 {fmtShortTz(job.next_run_at, dTz)}
             <span className="text-fg-subtle">{relativeTime(job.next_run_at)}</span>
           </span>
         )}
@@ -59,7 +61,14 @@ export default function JobCard({ job, lastRun, triggering, onToggle, onTrigger,
 
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
         <div className="flex items-center gap-2">
-          <Badge tone={job.enabled ? "success" : "neutral"}>{job.enabled ? "启用" : "停用"}</Badge>
+          {/* fail_streak>0 且停用 = 调度器自动停的（手动启停会清零计数） */}
+          {job.enabled === 1 ? (
+            <Badge tone="success">启用</Badge>
+          ) : (job.fail_streak ?? 0) > 0 ? (
+            <Badge tone="warn">已自动暂停</Badge>
+          ) : (
+            <Badge tone="neutral">停用</Badge>
+          )}
           <Switch checked={job.enabled === 1} onChange={() => onToggle()} label={`启用「${job.name}」`} />
         </div>
         {/* 触发/编辑/删除三个动作统一为图标按钮，删除 hover 红色提醒 */}
