@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { errText, post, put } from "../api";
 import { useToast } from "../components/Toast";
-import { Button, Dialog, Field, Input, Select } from "../ui";
-import { Trash2 } from "../ui/icons";
+import { Button, Dialog, Input, Select } from "../ui";
 
 type Props = {
   open: boolean;
@@ -15,27 +14,54 @@ type Props = {
   onCleaned: () => void;
 };
 
-const RETENTION_OPTIONS = [30, 60, 90, 180, 365];
+const DAY = 24 * 3600 * 1000;
 
-/** 运行记录清理：自动保留期配置 + 按天数/范围立即清理 */
+const fmtCutoff = (ms: number) =>
+  new Date(ms).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+
+/**
+ * 运行记录清理。「自动清理」「立即清理」各是一个独立表单：标题、字段行
+ * （字段名 + 天数控件 + 单位「天」）、说明、全宽动作按钮依次向下。
+ * 两个表单互不影响：自动的保留期和立即的天数各自设置。
+ */
 export default function RunsCleanupDialog({ open, retentionDays, onClose, onRetentionChanged, onCleaned }: Props) {
   const toast = useToast();
-  const [retention, setRetention] = useState(retentionDays);
-  const [retentionBusy, setRetentionBusy] = useState(false);
-  const [days, setDays] = useState(String(retentionDays));
+  const [retention, setRetention] = useState(retentionDays); // 自动清理的保留期
+  const [days, setDays] = useState(String(retentionDays)); // 立即清理的保留天数（自由输入）
   const [daysErr, setDaysErr] = useState("");
+  const [retentionBusy, setRetentionBusy] = useState(false);
   const [failedOnly, setFailedOnly] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const id = useId();
+  const retentionId = `${id}-retention`;
+  const daysId = `${id}-days`;
+  const daysErrId = `${id}-days-err`;
+
+  const parsed = Number(days);
+  const daysValid = Number.isInteger(parsed) && parsed >= 1 && parsed <= 3650;
 
   // 每次打开都按父组件当前值重置，避免上次操作的残留
   useEffect(() => {
     if (open) {
       setRetention(retentionDays);
       setDays(String(retentionDays));
-      setFailedOnly(false);
       setDaysErr("");
+      setFailedOnly(false);
     }
   }, [open, retentionDays]);
+
+  // 库里可能存了预设之外的天数（比如手改过的 45），并进选项避免 select 空显示
+  const dayOptions = [7, 14, 30, 60, 90, 180, 365];
+  const retentionOptions = dayOptions.includes(retention)
+    ? dayOptions
+    : [...dayOptions, retention].sort((a, b) => a - b);
+
+  function onDaysChange(v: string) {
+    setDays(v);
+    const n = Number(v);
+    setDaysErr(v !== "" && !(Number.isInteger(n) && n >= 1 && n <= 3650) ? "请输入 1-3650 的整数" : "");
+  }
 
   async function saveRetention() {
     setRetentionBusy(true);
@@ -51,15 +77,13 @@ export default function RunsCleanupDialog({ open, retentionDays, onClose, onRete
   }
 
   async function cleanNow() {
-    const n = Number(days);
-    if (!Number.isInteger(n) || n < 1 || n > 3650) {
+    if (!daysValid) {
       setDaysErr("请输入 1-3650 的整数");
       return;
     }
-    setDaysErr("");
     setBusy(true);
     try {
-      const d = await post<{ deleted: number }>("/api/runs/cleanup", { days: n, failedOnly });
+      const d = await post<{ deleted: number }>("/api/runs/cleanup", { days: parsed, failedOnly });
       toast(`已清理 ${d.deleted} 条记录`);
       onClose();
       onCleaned();
@@ -71,43 +95,54 @@ export default function RunsCleanupDialog({ open, retentionDays, onClose, onRete
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="清理运行记录" width="max-w-sm"
-      footer={<Button variant="secondary" onClick={onClose}>关闭</Button>}>
-      {/* 自动清理：改的是调度器每 5 分钟使用的保留期（settings.runs_retention_days） */}
-      <section className="mb-5">
-        <p className="text-sm font-medium text-fg">自动清理</p>
-        <p className="mt-0.5 text-xs text-fg-muted">调度器每 5 分钟运行一次，超过保留期的记录会被自动删除。</p>
-        <div className="mt-2 flex items-center gap-2">
-          <div className="w-36">
-            <Select aria-label="自动清理保留期" value={retention}
+    <Dialog open={open} onClose={onClose} title="清理运行记录" width="max-w-sm">
+      {/* 表单一：自动清理 */}
+      <section>
+        <h3 className="text-sm font-semibold text-fg">自动清理</h3>
+        <div className="mt-2.5 flex items-center gap-2">
+          <label htmlFor={retentionId} className="shrink-0 text-sm text-fg-muted">保留最近</label>
+          <div className="w-24 shrink-0">
+            <Select id={retentionId} value={retention}
               onChange={e => setRetention(Number(e.target.value))}>
-              {RETENTION_OPTIONS.map(d => <option key={d} value={d}>{d} 天</option>)}
+              {retentionOptions.map(d => <option key={d} value={d}>{d}</option>)}
             </Select>
           </div>
-          <Button size="sm" variant="secondary" loading={retentionBusy}
-            disabled={retention === retentionDays}
-            onClick={() => void saveRetention()}>保存</Button>
+          <span className="text-sm text-fg-muted">天</span>
         </div>
+        <p className="mt-2 text-xs text-fg-muted">超过保留期的记录由调度器自动删除。</p>
+        <Button className="mt-3 w-full" loading={retentionBusy} disabled={retention === retentionDays}
+          variant={retention === retentionDays ? "secondary" : "primary"}
+          onClick={() => void saveRetention()}>保存</Button>
       </section>
+      
 
-      <section>
-        <p className="text-sm font-medium text-fg">立即清理</p>
-        <p className="mt-0.5 text-xs text-fg-muted">删除指定天数之前的记录，立即执行、不影响保留期设置。</p>
-        <div className="mt-2">
-          <Field label="保留最近（天）" error={daysErr || null}>
-            {({ id, describedBy }) => (
-              <Input id={id} aria-describedby={describedBy} type="number" min={1} max={3650}
-                invalid={!!daysErr} value={days} onChange={e => setDays(e.target.value)} />
-            )}
-          </Field>
+      {/* 表单二：立即清理 */}
+      <section className="mt-6">
+        <h3 className="text-sm font-semibold text-fg">立即清理</h3>
+        <div className="mt-2.5 flex items-center gap-2">
+          <label htmlFor={daysId} className="shrink-0 text-sm text-fg-muted">保留最近</label>
+          <div className="w-24 shrink-0">
+            <Input id={daysId} aria-describedby={daysErr ? daysErrId : undefined}
+              type="number" min={1} max={3650} invalid={!!daysErr} value={days}
+              onChange={e => onDaysChange(e.target.value)} />
+          </div>
+          <span className="text-sm text-fg-muted">天</span>
         </div>
-        <label className="mt-3 mb-4 flex items-center gap-2 text-xs text-fg-muted">
+        <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-sm text-fg-muted">
           <input type="checkbox" checked={failedOnly} className="accent-fg cursor-pointer"
             onChange={e => setFailedOnly(e.target.checked)} />
-          仅清理失败的记录
+          仅清理失败记录
         </label>
-        <Button variant="danger" loading={busy} onClick={() => void cleanNow()}
-          icon={<Trash2 className="size-4" />}>立即清理</Button>
+        {daysValid ? (
+          <p className="mt-2 text-xs text-fg-muted">
+            将删除 <span className="font-medium text-fg tnum">{fmtCutoff(Date.now() - parsed * DAY)}</span>{" "}
+            之前的{failedOnly ? "失败" : "全部"}记录，删除后无法恢复。
+          </p>
+        ) : daysErr ? (
+          <p id={daysErrId} role="alert" className="mt-2 text-xs text-danger">{daysErr}</p>
+        ) : null}
+        <Button variant="danger" className="mt-3 w-full" loading={busy} disabled={!daysValid}
+          onClick={() => void cleanNow()}>立即清理</Button>
       </section>
     </Dialog>
   );
