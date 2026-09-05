@@ -7,6 +7,8 @@ import type { Job, Run } from "../types";
 import { Button, EmptyState, Segmented, Select, Skeleton, cx, focusRing } from "../ui";
 import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Trash2 } from "../ui/icons";
 import { fmtTime } from "../utils/time";
+import { useAlive } from "../utils/useAlive";
+import { useAutoRefresh } from "../utils/useAutoRefresh";
 import RunsCleanupDialog from "./RunsCleanupDialog";
 
 const PAGE_SIZE = 50; // 与服务端 routes/runs.ts 的 PAGE_SIZE 一致
@@ -48,6 +50,13 @@ export default function Runs() {
     setParams(q, { replace: true });
   }
 
+  /** 当前筛选对应的 runs 查询串（首次拉取与自动刷新共用） */
+  const runsQuery = () => new URLSearchParams({
+    page: String(page),
+    ...(jobId ? { job_id: String(jobId) } : {}),
+    ...(status ? { status } : {}),
+  });
+
   useEffect(() => { get<Job[]>("/api/jobs").then(setJobs).catch(() => {}); }, []);
 
   // alive 标记：连点筛选/翻页时「先发后到」的旧响应不能覆盖新响应，
@@ -55,16 +64,20 @@ export default function Runs() {
   useEffect(() => {
     let alive = true;
     setRows(null);
-    const q = new URLSearchParams({
-      page: String(page),
-      ...(jobId ? { job_id: String(jobId) } : {}),
-      ...(status ? { status } : {}),
-    });
-    get<{ total: number; rows: Run[] }>(`/api/runs?${q}`)
+    get<{ total: number; rows: Run[] }>(`/api/runs?${runsQuery()}`)
       .then(d => { if (!alive) return; setTotal(d.total); setRows(d.rows); })
       .catch(e => { if (!alive) return; setRows([]); toast(errText(e), "err"); });
     return () => { alive = false; };
   }, [jobId, status, page, nonce]);
+
+  // 静默自动刷新：30 秒重拉当前筛选页，保留旧数据不闪骨架屏；
+  // 清理弹窗打开时暂停，页面不可见时由 hook 统一暂停。
+  const alive = useAlive();
+  useAutoRefresh(() => {
+    get<{ total: number; rows: Run[] }>(`/api/runs?${runsQuery()}`)
+      .then(d => { if (alive.current) { setTotal(d.total); setRows(d.rows); } })
+      .catch(() => {});
+  }, 30_000, !cleanupOpen);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = (page - 1) * PAGE_SIZE + 1;

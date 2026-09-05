@@ -4,13 +4,16 @@ import { get } from "../api";
 import PageHeader from "../components/PageHeader";
 import type { Job, Run, Stats } from "../types";
 import { Card, EmptyState, Skeleton, SkeletonCard, Button, cx } from "../ui";
-import { ArrowRight, CircleAlert, CircleCheck, CircleX, Clock, Inbox, Play, RefreshCw, Timer, Users } from "../ui/icons";
-import { fmtShort, relativeTime } from "../utils/time";
+import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, Inbox, Play, RefreshCw, Timer, Users } from "../ui/icons";
+import { fmtShort, fmtShortTz, relativeTime } from "../utils/time";
 import { useAlive } from "../utils/useAlive";
-import { describeLocal, parseSchedule } from "./Jobs/schedule";
+import { useAutoRefresh } from "../utils/useAutoRefresh";
+import { describeLocal, displayTzOf, parseSchedule } from "./Jobs/schedule";
+
+type StatKey = "accounts" | "total_jobs" | "enabled_jobs" | "today_runs" | "failed_24h";
 
 type StatCard = {
-  key: keyof Stats;
+  key: StatKey;
   label: string;
   icon: React.ReactNode;
   alarm?: boolean;
@@ -26,6 +29,9 @@ const CARDS: StatCard[] = [
 
 /** 侧栏「即将运行」最多展示的条数 */
 const UPCOMING_LIMIT = 10;
+
+// 心跳超过 3 个调度周期（cron 触发每 5 分钟一轮）未更新，判定定时触发链路停了
+const HEARTBEAT_STALE_MS = 15 * 60_000;
 
 // next_run_at 已过但尚未被调度器认领（通常不超过一个调度周期）时显示「即将」，
 // 否则相对时间会算出「3 分钟前」这种过去式，读起来像已经跑完了。
@@ -61,6 +67,9 @@ export default function Dashboard() {
 
   useEffect(load, []);
 
+  // 自动刷新：统计/最近运行/即将运行每 30 秒重拉，页面不可见时暂停
+  useAutoRefresh(load, 30_000);
+
   // 只看已启用的任务，按下次触发时间升序；filter 已产生新数组，sort 不会动 state
   const upcoming = jobs === null
     ? null
@@ -72,7 +81,7 @@ export default function Dashboard() {
     <div>
       <PageHeader title="仪表盘" description="定时任务的运行概况与接下来的触发计划。" />
 
-      <div aria-busy={stats === null && !statsError} className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div aria-busy={stats === null && !statsError} className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {statsError ? (
           <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger">
             <span>统计数据加载失败。</span>
@@ -103,6 +112,21 @@ export default function Dashboard() {
               );
             })}
       </div>
+
+      {/* 调度器心跳：scheduled 入口每轮写一次。超过阈值没活动说明定时触发链路
+          停了（部署异常、配额用尽等），统计数字再准也不可信，所以要显性提示。 */}
+      {stats !== null && (() => {
+        const hb = stats.scheduler_last_run_at;
+        const stale = hb === null || Date.now() - hb > HEARTBEAT_STALE_MS;
+        return (
+          <p className={cx("mb-8 flex items-center gap-1.5 text-xs", stale ? "text-danger" : "text-fg-subtle")}>
+            {stale ? <CircleAlert className="size-3.5 shrink-0" /> : <Activity className="size-3.5 shrink-0" />}
+            {hb === null
+              ? "调度器尚未运行过"
+              : `调度器 ${relativeTime(Math.min(hb, Date.now()))}活动${stale ? "，定时触发可能已停止" : ""}`}
+          </p>
+        );
+      })()}
 
       {/* 宽屏两栏等宽：最近运行 / 即将运行形成「过去 / 未来」对照，
           等宽比主次分栏更对称，数据量不对等时也不会一头重一头轻；
@@ -183,7 +207,10 @@ export default function Dashboard() {
             </Card>
           ) : (
             <Card className="divide-y divide-border/60">
-              {upcoming.map(j => (
+              {upcoming.map(j => {
+                const s = parseSchedule(j.schedule_json);
+                const dTz = displayTzOf(s, j.timezone); // 与调度列同时区（cron 按 UTC/所选时区显示）
+                return (
                 // 四栏表格样式：名称 / 调度规则 / 绝对时间 / 相对时间。名称保底 6rem，
                 // 调度列随面板变窄连续收缩（truncate 持续省略），收缩到基本只剩省略号
                 // 时（@max-sm，384px）才整列移除——旧的 448px 二值切换不复存在。
@@ -192,11 +219,12 @@ export default function Dashboard() {
                     <Clock className="size-4 shrink-0 text-fg-subtle" />
                     <span className="min-w-0 truncate font-medium">{j.name}</span>
                   </div>
-                  <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-sm:hidden">{describeLocal(parseSchedule(j.schedule_json))}</span>
-                  <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShort(j.next_run_at)}</span>
+                  <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-sm:hidden">{describeLocal(s, j.timezone)}</span>
+                  <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShortTz(j.next_run_at, dTz)}</span>
                   <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle">{untilText(j.next_run_at)}</span>
                 </div>
-              ))}
+                );
+              })}
               <Link to="/jobs"
                 className="flex items-center justify-center gap-1 px-4 py-2.5 text-xs font-medium transition-colors duration-fast ease-smooth hover:bg-panel-hover">
                 管理全部任务<ArrowRight className="size-3" />

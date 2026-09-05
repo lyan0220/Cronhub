@@ -76,4 +76,6 @@ export type Stats = {
   enabled_jobs: number;
   today_runs: number;
   failed_24h: number;
+  /** 调度器最近一轮活动时间；从未运行过为 null */
+  scheduler_last_run_at: number | null;
 };
