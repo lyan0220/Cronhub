@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { del, errText, get, post, put } from "../api";
 import { useToast } from "./Toast";
 import { CHANNEL_TYPE_LABEL, type Channel } from "../types";
-import { Badge, Button, Dialog, Field, Input, Select, useConfirm } from "../ui";
+import { Badge, Button, Dialog, Field, Input, Select, Skeleton, useConfirm } from "../ui";
 import { Pencil, Plus, Trash2 } from "../ui/icons";
 
 type ChannelType = Channel["type"];
@@ -167,10 +167,7 @@ export default function NotifyDialog({ open, onClose }: { open: boolean; onClose
   return (
     <Dialog open={open} onClose={close} title="通知设置" width="max-w-lg"
       footer={editing === null ? (
-        <>
-          <Button variant="secondary" onClick={close}>关闭</Button>
-          <Button variant="primary" onClick={openNew} icon={<Plus className="size-4" />}>添加渠道</Button>
-        </>
+        <Button variant="secondary" onClick={close}>关闭</Button>
       ) : (
         <>
           <Button variant="secondary" onClick={() => setEditing(null)}>取消</Button>
@@ -180,65 +177,70 @@ export default function NotifyDialog({ open, onClose }: { open: boolean; onClose
         </>
       )}>
       {editing === null ? (
-        <div>
-          {/* 渠道列表：名称 + 类型 + 完整地址（可复制核对），行内测试/编辑/删除 */}
-          {channels === null ? (
-            <p className="py-6 text-center text-sm text-fg-subtle">加载中…</p>
-          ) : channels.length === 0 ? (
-            <p className="py-6 text-center text-sm text-fg-subtle">
-              还没有通知渠道。点「添加渠道」创建第一个，任务失败时才能收到推送。
-            </p>
-          ) : (
-            <div className="divide-y divide-border/60 rounded-lg border border-border">
-              {channels.map(ch => (
-                <div key={ch.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-fg">{ch.name}</span>
-                      <Badge>{TYPE_LABEL[ch.type]}</Badge>
-                    </div>
-                    {/* 地址明文展示：单管理员系统，方便核对与二次编辑 */}
-                    <p className="mt-0.5 truncate font-mono text-xs text-fg-subtle" title={ch.url}>{ch.url}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => void testChannel(ch)}>测试</Button>
-                    <button type="button" aria-label={`编辑「${ch.name}」`} title="编辑"
-                      className="rounded-md p-1.5 text-fg-muted transition-colors hover:bg-panel-hover hover:text-fg"
-                      onClick={() => openEdit(ch)}>
-                      <Pencil className="size-4" aria-hidden />
-                    </button>
-                    <button type="button" aria-label={`删除「${ch.name}」`} title="删除"
-                      className="rounded-md p-1.5 text-fg-muted transition-colors hover:bg-danger-soft hover:text-danger"
-                      onClick={() => void removeChannel(ch)}>
-                      <Trash2 className="size-4" aria-hidden />
-                    </button>
-                  </div>
-                </div>
-              ))}
+        <div className="space-y-6">
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">通知渠道</h3>
+              <Button size="sm" variant="secondary" onClick={openNew} icon={<Plus className="size-3.5" />}>添加</Button>
             </div>
-          )}
+            {channels === null ? (
+              <div className="space-y-2" aria-busy="true">
+                <Skeleton className="h-14 w-full rounded-lg" />
+                <Skeleton className="h-14 w-full rounded-lg" />
+              </div>
+            ) : channels.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-fg-subtle">
+                还没有渠道，点右上角「添加」创建第一个
+              </p>
+            ) : (
+              /* 渠道列表：名称 + 类型 + 完整地址（可复制核对），行内测试/编辑/删除 */
+              <div className="divide-y divide-border/60 rounded-lg border border-border">
+                {channels.map(ch => (
+                  <div key={ch.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-fg">{ch.name}</span>
+                        <Badge>{TYPE_LABEL[ch.type]}</Badge>
+                      </div>
+                      {/* 地址明文展示：单管理员系统，方便核对与二次编辑 */}
+                      <p className="mt-0.5 truncate font-mono text-xs text-fg-subtle" title={ch.url}>{ch.url}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => void testChannel(ch)}>测试</Button>
+                      <button type="button" aria-label={`编辑「${ch.name}」`} title="编辑"
+                        className="rounded-md p-1.5 text-fg-muted transition-colors hover:bg-panel-hover hover:text-fg"
+                        onClick={() => openEdit(ch)}>
+                        <Pencil className="size-4" aria-hidden />
+                      </button>
+                      <button type="button" aria-label={`删除「${ch.name}」`} title="删除"
+                        className="rounded-md p-1.5 text-fg-muted transition-colors hover:bg-danger-soft hover:text-danger"
+                        onClick={() => void removeChannel(ch)}>
+                        <Trash2 className="size-4" aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
-          {/* 全局自动停用 */}
-          <div className="mt-6">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">连续失败自动停用</h3>
+          <section>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">自动停用</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-fg">同一个任务连续失败</span>
+              <span className="text-sm text-fg">同一任务连续失败</span>
               <div className="w-16">
                 <Input aria-label="连续失败次数" type="number" min={0} max={100}
                   value={thresholdDraft}
                   onChange={e => setThresholdDraft(Number(e.target.value))} />
               </div>
-              <span className="text-sm text-fg">次后，自动停用它</span>
+              <span className="text-sm text-fg">次后自动停用并发送通知</span>
               <Button size="sm" variant="secondary" loading={savingThreshold} onClick={() => void saveThreshold()}
                 disabled={thresholdDraft === threshold}>保存</Button>
             </div>
-            <ul className="mt-1.5 space-y-1 text-xs text-fg-subtle">
-              <li>停用条件：仅统计定时触发的失败；同一任务连续失败达到该次数时，于当轮自动停用，任务列表标记「已自动暂停」。</li>
-              <li>通知时机：达到阈值前的每次定时失败各推送一条「任务触发失败」；停用当轮改推一条「任务已自动停用」。推送渠道由该任务的「失败通知」配置决定。</li>
-              <li>计数规则：触发成功即清零重新计数；手动触发的结果不参与计数，也不产生推送。</li>
-              <li>设为 0 表示不自动停用，失败通知照常发送。</li>
-            </ul>
-          </div>
+            <p className="mt-1.5 text-xs text-fg-subtle">
+              仅统计定时触发的失败，成功即清零重新计数；设为 0 表示不自动停用。
+            </p>
+          </section>
         </div>
       ) : (
         <form onSubmit={e => { e.preventDefault(); void saveChannel(); }} noValidate>

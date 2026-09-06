@@ -86,29 +86,57 @@ export default function JobForm({
   const touch = (k: Key) => () => setTouched(t => ({ ...t, [k]: true }));
   const err = (k: Key) => (touched[k] ? errors[k] : null);
 
-  // ---- workflow 列表：账号 + 仓库就绪后防抖拉取，失败退回手动输入 ----
+  // ---- workflow：账号 + 仓库就绪后防抖拉取列表；获取失败/用户偏好时退回手动输入 ----
   const [workflows, setWorkflows] = useState<WorkflowItem[] | null>(null);
   const [wfErr, setWfErr] = useState("");
-  const [manualWorkflow, setManualWorkflow] = useState(false);
+  const [wfManual, setWfManual] = useState(false);
+  const [wfRetry, setWfRetry] = useState(0);
   const repoReady = form.trigger_type === "workflow_dispatch" && form.account_id > 0 && validateRepo(form.repo) === null;
 
   useEffect(() => {
     if (!repoReady) { setWorkflows(null); setWfErr(""); return; }
+    setWfErr(""); // 换账号/仓库或重试时清掉上一次的失败提示
     let alive = true;
     const t = setTimeout(async () => {
       try {
         const d = await get<{ workflows: WorkflowItem[] }>(
           `/api/github/workflows?account_id=${form.account_id}&repo=${encodeURIComponent(form.repo.trim())}`,
         );
-        if (alive) { setWorkflows(d.workflows); setWfErr(""); }
+        if (alive) { setWorkflows(d.workflows); }
       } catch (e) {
         if (alive) { setWorkflows(null); setWfErr(errText(e)); }
       }
     }, 300); // 与 cron 预览一致的防抖
     return () => { alive = false; clearTimeout(t); };
-  }, [form.account_id, form.repo, repoReady]);
+  }, [form.account_id, form.repo, repoReady, wfRetry]);
 
-  const wfFromList = !!workflows && workflows.some(w => w.id === form.workflow_id);
+  const wfLoading = repoReady && workflows === null && !wfErr;
+  const wfListReady = !!workflows && workflows.length > 0;
+  const wfFromList = wfListReady && workflows!.some(w => w.id === form.workflow_id);
+  const useWfList = !wfManual && wfListReady;
+
+  // workflow 字段下方的唯一状态行：左侧状态说明，右侧唯一的动作（切换输入方式/重试）
+  let wfStatus = "";
+  let wfActionLabel: string | null = null;
+  let wfAction: (() => void) | null = null;
+  if (repoReady) {
+    if (wfErr) {
+      wfStatus = `获取列表失败：${wfErr}`;
+      wfActionLabel = "重试获取";
+      wfAction = () => setWfRetry(n => n + 1);
+    } else if (wfLoading) {
+      wfStatus = "正在获取 workflow 列表…";
+      wfActionLabel = "改为手动输入";
+      wfAction = () => setWfManual(true);
+    } else if (workflows !== null && workflows.length === 0) {
+      wfStatus = "该仓库没有可触发的 workflow，可手动输入文件名";
+    } else if (wfListReady) {
+      wfActionLabel = wfManual ? "从列表选择" : "改为手动输入";
+      wfAction = () => setWfManual(!wfManual);
+    }
+  } else {
+    wfStatus = "选择账号并填写仓库后，可从列表选择 workflow";
+  }
 
   // 失败通知多选：全部渠道 = null；开关开着但一个渠道都没勾 → 阻止保存
   const notifyError = form.notify === 1 && channels.length > 0
@@ -215,51 +243,42 @@ export default function JobForm({
 
           {form.trigger_type === "workflow_dispatch" ? (
             <>
-              {workflows && workflows.length > 0 && !manualWorkflow ? (
-                <Field label="选择 Workflow" hint="也可改为手动输入文件名或数字 ID"
-                  error={err("workflow_id")}>
-                  {({ id, describedBy }) => (
-                    <Select id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
-                      value={wfFromList ? form.workflow_id : ""}
-                      onBlur={touch("workflow_id")}
-                      onChange={e => {
-                        if (e.target.value === "") { setManualWorkflow(true); return; }
-                        set({ workflow_id: e.target.value });
-                      }}>
-                      <option value="">手动输入…</option>
-                      {!wfFromList && form.workflow_id && (
-                        <option value={form.workflow_id}>当前：{form.workflow_id}</option>
+              {/* 单一字段两种形态：列表就绪 → 下拉；未就绪/加载中/失败/手动偏好 → 输入框。
+                  状态与切换动作集中在控件下方的一行，格式说明交给 placeholder 与校验文案 */}
+              <Field label="Workflow" error={err("workflow_id")}>
+                {({ id, describedBy }) => (
+                  <>
+                    {useWfList ? (
+                      <Select id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
+                        value={form.workflow_id} onBlur={touch("workflow_id")}
+                        onChange={e => set({ workflow_id: e.target.value })}>
+                        <option value="" hidden>从列表选择 workflow</option>
+                        {!wfFromList && form.workflow_id && (
+                          <option value={form.workflow_id}>当前保存：{form.workflow_id}</option>
+                        )}
+                        {workflows!.map(w => (
+                          <option key={w.id} value={w.id}>
+                            {w.name ? `${w.name}（${w.path}）` : w.path}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <Input id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
+                        value={form.workflow_id} placeholder="run.yml 或数字 ID" onBlur={touch("workflow_id")}
+                        onChange={e => set({ workflow_id: e.target.value })} />
+                    )}
+                    <div className="mt-1.5 flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate text-xs text-fg-subtle">{wfStatus}</span>
+                      {wfAction && (
+                        <button type="button" onClick={wfAction}
+                          className="shrink-0 text-xs text-fg-muted underline-offset-2 hover:text-fg hover:underline">
+                          {wfActionLabel}
+                        </button>
                       )}
-                      {workflows.map(w => (
-                        <option key={w.id} value={w.id}>
-                          {w.name ? `${w.name}（${w.path}）` : w.path}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
-                </Field>
-              ) : (
-                <Field label="Workflow 文件名 / ID"
-                  hint="如 run.yml；也可填 workflow 数字 ID"
-                  error={err("workflow_id")}>
-                  {({ id, describedBy }) => (
-                    <Input id={id} aria-describedby={describedBy} invalid={!!err("workflow_id")}
-                      value={form.workflow_id} placeholder="run.yml" onBlur={touch("workflow_id")}
-                      onChange={e => set({ workflow_id: e.target.value })} />
-                  )}
-                </Field>
-              )}
-              {workflows && workflows.length > 0 && manualWorkflow && (
-                <button type="button" onClick={() => setManualWorkflow(false)}
-                  className="-mt-2 mb-4 text-xs text-fg-muted underline-offset-2 hover:underline">
-                  改为从列表选择
-                </button>
-              )}
-              {!workflows && repoReady && (
-                <p className="-mt-2 mb-4 text-xs text-fg-subtle">
-                  {wfErr ? `无法获取 workflow 列表：${wfErr}，可手动输入文件名。` : "正在获取 workflow 列表…"}
-                </p>
-              )}
+                    </div>
+                  </>
+                )}
+              </Field>
               <Field label="分支 / Ref">
                 {({ id }) => (
                   <Input id={id} value={form.ref}
