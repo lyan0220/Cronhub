@@ -8,3 +8,4 @@ dist/
 /vitest.config.ts
 .superpowers/
 .zcode/
+/scripts/

@@ -5,16 +5,26 @@ import type { Env } from "../types";
 const runRoutes = new Hono<{ Bindings: Env }>();
 const PAGE_SIZE = 50;
 
+/** 状态互斥：失败包含触发与执行失败；成功仅包含执行成功及未追踪的触发成功历史行。 */
+const STATUS_FILTERS: Record<string, string> = {
+  failed: "(r.status='failed' OR (r.status='success' AND r.gh_state='done' AND COALESCE(r.gh_conclusion,'')!='success'))",
+  success: "(r.status='success' AND (r.gh_state IS NULL OR (r.gh_state='done' AND r.gh_conclusion='success')))",
+  running: "(r.status='success' AND r.gh_state='running')",
+  waiting: "(r.status='success' AND r.gh_state='waiting')",
+  unknown: "(r.status='success' AND r.gh_state='unknown')",
+};
+
 runRoutes.get("/", async (c) => {
   const jobId = Number(c.req.query("job_id") ?? 0);
   const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
-  const statusQuery = c.req.query("status");
-  const status = statusQuery === "success" || statusQuery === "failed" ? statusQuery : null;
+  // 旧链接可能带 gh= 参数（上一版的两段式筛选），按同语义迁移
+  const statusKey = c.req.query("status") ?? c.req.query("gh") ?? "";
+  const statusCond = Object.hasOwn(STATUS_FILTERS, statusKey) ? STATUS_FILTERS[statusKey] : undefined;
   const offset = (page - 1) * PAGE_SIZE;
   const conds: string[] = [];
   const binds: (number | string)[] = [];
   if (jobId > 0) { conds.push("r.job_id=?"); binds.push(jobId); }
-  if (status) { conds.push("r.status=?"); binds.push(status); }
+  if (statusCond) conds.push(statusCond);
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
   const cnt = await c.env.DB.prepare(`SELECT COUNT(*) AS cnt FROM runs r ${where}`)

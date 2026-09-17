@@ -42,9 +42,24 @@ CREATE TABLE IF NOT EXISTS runs (
   source TEXT NOT NULL,
   status TEXT NOT NULL,
   http_status INTEGER,
-  error_message TEXT
+  error_message TEXT,
+  -- GitHub workflow 真实执行结果的追踪列。status/http_status/error_message 只描述
+  -- dispatch 请求本身（HTTP 204 即 success），workflow 是否真的跑完、成败与否由
+  -- 这几列承载，由 runtrack 轮询器回填：
+  --   gh_run_id      匹配到的 GitHub run id（跨任务唯一绑定，先到先得）
+  --   gh_state       waiting=尚未匹配到 run / running=已匹配未完成 /
+  --                  done=已有结论 / unknown=超追踪窗口放弃
+  --   gh_conclusion  GitHub conclusion：success/failure/cancelled/startup_failure…
+  --   gh_run_url     run 页面链接（前端跳转用）
+  --   gh_completed_at workflow 结束时间（GitHub 侧 updated_at）
+  gh_run_id INTEGER,
+  gh_state TEXT CHECK (gh_state IN ('waiting','running','done','unknown')),
+  gh_conclusion TEXT,
+  gh_run_url TEXT,
+  gh_completed_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_runs_job ON runs(job_id, triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_runs_gh_pending ON runs(gh_state, triggered_at);
 -- 单列时间索引：不带 job_id 的运行记录列表（ORDER BY triggered_at DESC）和
 -- 调度器每 5 分钟一次的 90 天清理（DELETE WHERE triggered_at < ?）都走这里，
 -- 没有它就是全表扫描 + 排序，数据量上去后拖慢每次 Cron 唤醒。

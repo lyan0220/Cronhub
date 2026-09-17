@@ -31,7 +31,7 @@ export async function getChannel(env: Env, id: number): Promise<ChannelRow | nul
 }
 
 export type NotifyPayload = {
-  event: "job_failed" | "job_auto_paused" | "account_invalid" | "test";
+  event: "job_failed" | "job_auto_paused" | "account_invalid" | "workflow_failed" | "test";
   title: string;
   body: string;
 };

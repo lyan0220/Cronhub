@@ -42,6 +42,22 @@ const MIGRATIONS: Migration[] = [
       "DELETE FROM settings WHERE key = 'notify_config'",
     ],
   },
+  {
+    // GitHub workflow 真实执行结果追踪：dispatch API 只返回 204，workflow 是否
+    // 跑完、成败与否由 runtrack 轮询器（src/server/runtrack.ts）回填这几列。
+    // 语义见 schema.sql runs 表注释。
+    id: 2,
+    name: "gh-run-tracking",
+    statements: [
+      "ALTER TABLE runs ADD COLUMN gh_run_id INTEGER",
+      "ALTER TABLE runs ADD COLUMN gh_state TEXT CHECK (gh_state IN ('waiting','running','done','unknown'))",
+      "ALTER TABLE runs ADD COLUMN gh_conclusion TEXT",
+      "ALTER TABLE runs ADD COLUMN gh_run_url TEXT",
+      "ALTER TABLE runs ADD COLUMN gh_completed_at INTEGER",
+      // 轮询器每轮查 waiting/running 的待追踪行；不带 job_id，走 (gh_state, triggered_at)
+      `CREATE INDEX IF NOT EXISTS idx_runs_gh_pending ON runs(gh_state, triggered_at)`,
+    ],
+  },
 ];
 
 let migrated = false;

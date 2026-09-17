@@ -97,3 +97,114 @@ export async function verifyGithubToken(
     return { ok: false, error: `请求失败: ${(e as Error).message}` };
   }
 }
+
+export type WorkflowRunSummary = {
+  run_id: number;
+  created_at: number;
+  /** GitHub 侧最近更新时间；run 已完成时即结束时间 */
+  updated_at: number;
+  head_branch: string | null;
+  status: "queued" | "in_progress" | "completed";
+  conclusion: string | null;
+  html_url: string;
+};
+
+export type ListRunsResult = { ok: true; runs: WorkflowRunSummary[] } | { ok: false; error: string };
+
+/** 拉取仓库最近的 workflow runs，用于把 204 的 dispatch 与真实 run 关联起来。
+ *  event 可按触发方式过滤（workflow_dispatch / repository_dispatch），减少无关
+ *  run 的干扰；返回按 created_at 倒序（GitHub 默认）。 */
+export async function listWorkflowRuns(
+  token: string,
+  cfg: { repo: string; workflowId?: string | null; event?: string | null },
+  fetchFn: typeof fetch = fetch,
+  timeoutMs = 15_000,
+): Promise<ListRunsResult> {
+  const params = new URLSearchParams({ per_page: "20" });
+  if (cfg.event) params.set("event", cfg.event);
+  const base = cfg.workflowId
+    ? `https://api.github.com/repos/${cfg.repo}/actions/workflows/${cfg.workflowId}/runs`
+    : `https://api.github.com/repos/${cfg.repo}/actions/runs`;
+  try {
+    const res = await fetchFn(`${base}?${params}`, {
+      headers: HEADERS(token),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) {
+      let msg = await res.text();
+      try {
+        msg = (JSON.parse(msg) as { message?: string }).message ?? msg;
+      } catch { /* 保留原文 */ }
+      return { ok: false, error: `GitHub API ${res.status}: ${msg}`.slice(0, 500) };
+    }
+    const data = (await res.json()) as {
+      workflow_runs?: Array<{
+        id: number;
+        created_at: string;
+        updated_at: string;
+        head_branch: string | null;
+        status: string;
+        conclusion: string | null;
+        html_url: string;
+      }>;
+    };
+    const runs = (data.workflow_runs ?? []).map((r) => ({
+      run_id: r.id,
+      created_at: Date.parse(r.created_at),
+      updated_at: Date.parse(r.updated_at),
+      head_branch: r.head_branch,
+      status: r.status as WorkflowRunSummary["status"],
+      conclusion: r.conclusion,
+      html_url: r.html_url,
+    }));
+    return { ok: true, runs: runs.filter((r) => Number.isFinite(r.created_at)) };
+  } catch (e) {
+    return { ok: false, error: `请求失败: ${(e as Error).message}` };
+  }
+}
+
+/** 按 run id 查单条 run：列表分页（per_page=20）覆盖不到的长跑 run 刷新用。 */
+export async function getWorkflowRun(
+  token: string,
+  repo: string,
+  runId: number,
+  fetchFn: typeof fetch = fetch,
+  timeoutMs = 15_000,
+): Promise<{ ok: true; run: WorkflowRunSummary } | { ok: false; error: string }> {
+  try {
+    const res = await fetchFn(`https://api.github.com/repos/${repo}/actions/runs/${runId}`, {
+      headers: HEADERS(token),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) {
+      let msg = await res.text();
+      try {
+        msg = (JSON.parse(msg) as { message?: string }).message ?? msg;
+      } catch { /* 保留原文 */ }
+      return { ok: false, error: `GitHub API ${res.status}: ${msg}`.slice(0, 500) };
+    }
+    const r = (await res.json()) as {
+      id: number;
+      created_at: string;
+      updated_at: string;
+      head_branch: string | null;
+      status: string;
+      conclusion: string | null;
+      html_url: string;
+    };
+    return {
+      ok: true,
+      run: {
+        run_id: r.id,
+        created_at: Date.parse(r.created_at),
+        updated_at: Date.parse(r.updated_at),
+        head_branch: r.head_branch,
+        status: r.status as WorkflowRunSummary["status"],
+        conclusion: r.conclusion,
+        html_url: r.html_url,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: `请求失败: ${(e as Error).message}` };
+  }
+}

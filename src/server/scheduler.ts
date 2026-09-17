@@ -2,6 +2,7 @@ import { computeNextRun, validateSchedule } from "./schedule";
 import { decryptText } from "./crypto";
 import { triggerGithub } from "./github";
 import { sendNotify, getChannels, type ChannelRow, type NotifyPayload } from "./notify";
+import { pollGhRuns } from "./runtrack";
 import { DEFAULT_RUN_RETENTION_DAYS, KEY_RUNS_RETENTION, KEY_SCHEDULER_HEARTBEAT, getAutoPauseThreshold, getSetting, setSetting } from "./settings";
 import type { AccountRow, Env, JobRow } from "./types";
 
@@ -14,10 +15,13 @@ const SCHEDULE_CONCURRENCY = 8;
 export type WaitUntilHost = { waitUntil(promise: Promise<unknown>): void };
 
 async function recordRun(env: Env, jobId: number, source: "schedule" | "manual", status: string, httpStatus: number, error: string | null) {
+  // 成功触发的行置 waiting 进入追踪队列，由 runtrack 轮询回填 GitHub 真实结果；
+  // 触发本身失败的行没有 run 可言，gh_state 保持 NULL 不追踪。
+  const ghState = status === "success" ? "waiting" : null;
   await env.DB.prepare(
-    "INSERT INTO runs (job_id, triggered_at, source, status, http_status, error_message) VALUES (?,?,?,?,?,?)",
+    "INSERT INTO runs (job_id, triggered_at, source, status, http_status, error_message, gh_state) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(jobId, Date.now(), source, status, httpStatus, error)
+    .bind(jobId, Date.now(), source, status, httpStatus, error, ghState)
     .run();
 }
 
@@ -217,15 +221,22 @@ export async function runDueJobs(env: Env, now: number = Date.now(), ctx?: WaitU
   // 告警统一在派发收尾后发送，不阻塞触发本身：scheduled 路径挂 waitUntil 交给
   // 运行时收尾，无 ctx 的调用方（测试/手动路径）就地等待。allSettled 保证单条
   // 发送失败不影响其余；sendNotify 内部已吞掉网络异常。
-  if (notifications.length > 0 && channels.length > 0) {
-    const sends: Promise<boolean>[] = [];
-    for (const n of notifications) {
-      for (const ch of n.channels) sends.push(sendNotify(ch, n.payload));
+  // 同一个收尾钩子里无条件执行 GitHub workflow 结果追踪轮询（waiting 匹配 /
+  // running 刷新 / 失败告警）——追踪回填服务于界面展示，不依赖渠道是否配置。
+  const tail = (async () => {
+    if (notifications.length > 0 && channels.length > 0) {
+      const sends: Promise<boolean>[] = [];
+      for (const n of notifications) {
+        for (const ch of n.channels) sends.push(sendNotify(ch, n.payload));
+      }
+      await Promise.allSettled(sends);
     }
-    const all = Promise.allSettled(sends);
-    if (ctx) ctx.waitUntil(all);
-    else await all;
-  }
+    try {
+      await pollGhRuns(env, now, fetch, ctx ? { waitUntil: ctx.waitUntil.bind(ctx) } : undefined);
+    } catch { /* 追踪失败不影响调度 */ }
+  })();
+  if (ctx) ctx.waitUntil(tail);
+  else await tail;
 
   // 自动清理：保留期可在界面配置（settings.runs_retention_days），缺省 90 天。
   // 清理失败不影响本轮触发结果，下个周期会再试。

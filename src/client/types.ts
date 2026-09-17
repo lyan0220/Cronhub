@@ -68,6 +68,12 @@ export type Run = {
   status: "success" | "failed";
   http_status: number | null;
   error_message: string | null;
+  /** workflow 真实结果追踪（runtrack 轮询回填；触发失败的行恒为 null） */
+  gh_state: "waiting" | "running" | "done" | "unknown" | null;
+  gh_conclusion: string | null;
+  gh_run_url: string | null;
+  gh_run_id: number | null;
+  gh_completed_at: number | null;
 };
 
 export type Stats = {
@@ -76,6 +82,10 @@ export type Stats = {
   enabled_jobs: number;
   today_runs: number;
   failed_24h: number;
+  /** 近 24h workflow 真实失败数（触发成功但 conclusion ≠ success） */
+  gh_failed_24h: number;
+  /** 近 7 天 workflow 成功率（0-100 整数）；暂无已有结论的 run 为 null */
+  success_rate_7d: number | null;
   /** 调度器最近一轮活动时间；从未运行过为 null */
   scheduler_last_run_at: number | null;
 };

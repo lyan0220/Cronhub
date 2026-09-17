@@ -4,19 +4,23 @@ import { get } from "../api";
 import PageHeader from "../components/PageHeader";
 import type { Job, Run, Stats } from "../types";
 import { Card, EmptyState, Skeleton, SkeletonCard, Button, cx } from "../ui";
-import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, Inbox, Play, RefreshCw, Timer, Users } from "../ui/icons";
+import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, Inbox, LoaderCircle, Play, RefreshCw, Timer, Users } from "../ui/icons";
 import { fmtShort, fmtShortTz, relativeTime } from "../utils/time";
 import { useAlive } from "../utils/useAlive";
 import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { describeLocal, displayTzOf, parseSchedule } from "./Jobs/schedule";
 
-type StatKey = "accounts" | "total_jobs" | "enabled_jobs" | "today_runs" | "failed_24h";
+type StatKey = "accounts" | "total_jobs" | "enabled_jobs" | "today_runs" | "failed_24h" | "gh_failed_24h" | "success_rate_7d";
 
 type StatCard = {
   key: StatKey;
   label: string;
   icon: React.ReactNode;
   alarm?: boolean;
+  /** 数值后缀（成功率的 %）；值为 null 时显示 — */
+  suffix?: string;
+  /** 卡片底部「查看…」链接的目标（仅 alarm 卡展示） */
+  linkTo?: string;
 };
 
 const CARDS: StatCard[] = [
@@ -24,7 +28,9 @@ const CARDS: StatCard[] = [
   { key: "total_jobs", label: "任务总数", icon: <Timer className="size-4" /> },
   { key: "enabled_jobs", label: "已启用", icon: <Play className="size-4" /> },
   { key: "today_runs", label: "今日运行", icon: <Clock className="size-4" /> },
-  { key: "failed_24h", label: "近 24h 失败", icon: <CircleAlert className="size-4" />, alarm: true },
+  { key: "failed_24h", label: "触发失败", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/runs?status=failed" },
+  { key: "gh_failed_24h", label: "workflow 失败", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/runs?gh=failed" },
+  { key: "success_rate_7d", label: "7 天成功率", icon: <CircleCheck className="size-4" />, suffix: "%" },
 ];
 
 /** 侧栏「即将运行」最多展示的条数 */
@@ -81,7 +87,7 @@ export default function Dashboard() {
     <div>
       <PageHeader title="仪表盘" description="定时任务的运行概况与接下来的触发计划。" />
 
-      <div aria-busy={stats === null && !statsError} className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div aria-busy={stats === null && !statsError} className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {statsError ? (
           <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger">
             <span>统计数据加载失败。</span>
@@ -92,7 +98,7 @@ export default function Dashboard() {
           ? CARDS.map(c => <SkeletonCard key={c.key} />)
           : CARDS.map(c => {
               const v = stats[c.key];
-              const hot = !!c.alarm && v > 0;
+              const hot = !!c.alarm && v !== null && v > 0;
               return (
                 <div key={c.key} className={cx(
                   "rounded-xl border p-4 transition-colors duration-fast ease-smooth",
@@ -101,9 +107,11 @@ export default function Dashboard() {
                   <div className={cx("flex items-center gap-1.5 text-xs", hot ? "text-danger" : "text-fg-muted")}>
                     {c.icon}<span>{c.label}</span>
                   </div>
-                  <p className={cx("mt-2 text-2xl font-semibold tabular-nums", hot && "text-danger")}>{v}</p>
+                  <p className={cx("mt-2 text-2xl font-semibold tabular-nums", hot && "text-danger")}>
+                    {v === null ? "—" : v}{c.suffix ?? ""}
+                  </p>
                   {hot && (
-                    <Link to="/runs?status=failed"
+                    <Link to={c.linkTo ?? "/runs"}
                       className="mt-1 inline-flex items-center gap-0.5 text-xs text-danger underline-offset-2 hover:underline">
                       查看失败记录<ArrowRight className="size-3" />
                     </Link>
@@ -157,20 +165,43 @@ export default function Dashboard() {
             <Card className="divide-y divide-border/60">
               {runs.map(r => {
                 const failed = r.status === "failed";
+                // 图标反映「当前已知的最坏结果」：触发失败最直接；触发成功后再看
+                // workflow 真实结论（追踪未覆盖的旧数据按触发成功展示）。
+                const ghState = failed ? null : r.gh_state;
+                const ghDone = ghState === "done";
+                const ghFailed = ghDone && r.gh_conclusion !== "success";
+                const bad = failed || ghFailed;
+                const icon = failed
+                  ? <CircleX className="size-4 shrink-0 text-danger" />
+                  : ghFailed
+                    ? <CircleX className="size-4 shrink-0 text-danger" />
+                    : ghState === "running"
+                      ? <LoaderCircle className="size-4 shrink-0 animate-spin text-warn" />
+                      : ghState === "waiting"
+                        ? <Clock className="size-4 shrink-0 text-fg-subtle" />
+                        : ghState === "unknown"
+                          ? <CircleAlert className="size-4 shrink-0 text-warn" />
+                          : <CircleCheck className={cx("size-4 shrink-0", ghDone ? "text-success" : "text-fg-subtle")} />;
+                const iconTitle = failed
+                  ? "触发失败"
+                  : ghFailed
+                    ? `workflow 执行失败（${r.gh_conclusion}）`
+                    : ghState === "running" ? "workflow 执行中"
+                    : ghState === "waiting" ? "等待 workflow 开始"
+                    : ghState === "unknown" ? "workflow 结果未知"
+                    : ghDone ? "workflow 执行成功" : "触发成功";
                 return (
                   // 四栏表格样式：名称 / 来源 / 绝对时间 / 相对时间，各占一栏跨行对齐。
                   // 面板变窄时来源列连续收缩（truncate 持续省略），收缩到基本只剩
                   // 省略号时（@max-sm，384px）才整列移除，几乎无感；名称保底 6rem。
                   <div key={r.id} className="grid grid-cols-[minmax(6rem,1fr)_minmax(0,3rem)_5rem_4rem] @max-sm:grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
                     <div className="flex min-w-0 items-center gap-1.5">
-                      {failed
-                        ? <CircleX className="size-4 shrink-0 text-danger" />
-                        : <CircleCheck className="size-4 shrink-0 text-success" />}
+                      <span title={iconTitle} className="shrink-0">{icon}</span>
                       <span className="min-w-0 truncate font-medium">{r.job_name ?? `任务#${r.job_id}`}</span>
                     </div>
                     <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-sm:hidden">{r.source === "manual" ? "手动" : "定时"}</span>
                     <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShort(r.triggered_at)}</span>
-                    <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle">{relativeTime(r.triggered_at)}</span>
+                    <span className={cx("whitespace-nowrap text-xs tabular-nums", bad ? "font-medium text-danger" : "text-fg-subtle")}>{relativeTime(r.triggered_at)}</span>
                   </div>
                 );
               })}
