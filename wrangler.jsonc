@@ -2,12 +2,10 @@
   "name": "cronjob",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-01",
-  "triggers": { "crons": ["*/5 * * * *"] },
+  "triggers": { "crons": ["*/2 * * * *"] },
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    // 显式声明绑定名：生产环境会自动注入 ASSETS，
-    // 但本地 wrangler dev 只有显式声明才会给 Worker 注入该绑定
     "binding": "ASSETS"
   },
   "d1_databases": [
@@ -16,9 +14,6 @@
       "database_name": "cronjob_db"
     }
   ],
-  // 登录限速（src/server/routes/auth.ts）：按 IP 每 60 秒 5 次失败。
-  // simple 变体的 period 只支持 10 / 60 秒，做不了 10 分钟窗口；且只在登录
-  // 失败路径上调用 limit()，成功登录不消耗配额，语义见路由内注释。
   "ratelimits": [
     {
       "name": "RATE_LIMITER",
