@@ -81,10 +81,17 @@ export function parseSchedule(json: string): Schedule {
   }
 }
 
-/** 人类可读的调度描述。cron 标注生效时区（空/UTC 显示 UTC）。 */
-export function describeLocal(s: Schedule, tz?: string | null): string {
-  if (s.type === "cron") return s.expr ? `cron ${s.expr}（${tz || "UTC"}）` : `cron（${tz || "UTC"}）`;
+/** 调度规则的紧凑描述（不含时区标注，仪表盘窄列用）：类型词统一前置 */
+export function describeRule(s: Schedule): string {
+  if (s.type === "cron") return s.expr ? `cron ${s.expr}` : "cron";
   const u = UNIT_NAME[s.unit ?? "m"];
-  if (s.mode === "random") return `每 ${s.min}~${s.max} ${u}（随机）`;
-  return `每 ${s.value} ${u}`;
+  if (s.mode === "random") return `随机 每 ${s.min}~${s.max} ${u}`;
+  return `固定 每 ${s.value} ${u}`;
+}
+
+/** 人类可读的调度描述：cron 表达式带生效时区（空/UTC 显示 UTC），中点分隔。 */
+export function describeLocal(s: Schedule, tz?: string | null): string {
+  const rule = describeRule(s);
+  if (s.type !== "cron") return rule;
+  return `${rule} · ${tz || "UTC"}`;
 }

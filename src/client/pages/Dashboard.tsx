@@ -9,7 +9,7 @@ import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, HeartPu
 import { fmtShort, fmtShortTz, relativeTime } from "../utils/time";
 import { useAlive } from "../utils/useAlive";
 import { useAutoRefresh } from "../utils/useAutoRefresh";
-import { describeLocal, displayTzOf, parseSchedule } from "./Jobs/schedule";
+import { describeLocal, describeRule, displayTzOf, parseSchedule } from "./Jobs/schedule";
 
 type StatCard = {
   key: string;
@@ -280,17 +280,16 @@ export default function Dashboard() {
             <Card className="divide-y divide-border/60">
               {upcoming.map(j => {
                 const s = parseSchedule(j.schedule_json);
-                const dTz = displayTzOf(s, j.timezone); // 与调度列同时区（cron 按 UTC/所选时区显示）
+                const dTz = displayTzOf(s, j.timezone); // 时间列与调度描述同时区显示
                 return (
-                // 四栏表格样式：名称 / 调度规则 / 绝对时间 / 相对时间。名称保底 6rem，
-                // 调度列随面板变窄连续收缩（truncate 持续省略），收缩到基本只剩省略号
-                // 时（@max-sm，384px）才整列移除——旧的 448px 二值切换不复存在。
-                <div key={j.id} className="grid grid-cols-[minmax(6rem,1fr)_minmax(0,11rem)_5rem_4rem] @max-sm:grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
+                <div key={j.id} className="grid grid-cols-[minmax(6rem,1fr)_minmax(0,9rem)_5rem_4rem] @max-md:grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-x-3 px-4 py-2.5 text-sm transition-colors duration-fast ease-smooth hover:bg-panel-hover">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <Clock className="size-4 shrink-0 text-fg-subtle" />
-                    <span className="min-w-0 truncate font-medium">{j.name}</span>
+                    <span className="min-w-0 truncate font-medium" title={j.name}>{j.name}</span>
                   </div>
-                  <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-sm:hidden">{describeLocal(s, j.timezone)}</span>
+                  {/* 调度列只显示规则本身；时区标注放 hover（时间列已按时区渲染）。
+                      容器 < 448px 时优先整列隐藏调度，把宽度让给任务名。 */}
+                  <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-md:hidden" title={describeLocal(s, j.timezone)}>{describeRule(s)}</span>
                   <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShortTz(j.next_run_at, dTz)}</span>
                   <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle">{untilText(j.next_run_at)}</span>
                 </div>
