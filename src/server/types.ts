@@ -48,3 +48,47 @@ export type JobRow = {
   created_at: number;
   updated_at: number;
 };
+
+export type MonitorRow = {
+  id: number;
+  name: string;
+  url: string;
+  method: "GET" | "HEAD";
+  /** 0 = 任意 2xx 即成功；其余为精确状态码断言 */
+  expected_status: number;
+  /** 响应体包含判定子串；NULL = 不检查（仅 GET 有意义） */
+  keyword: string | null;
+  /** 自定义请求头 JSON 对象；NULL = 仅默认头 */
+  headers_json: string | null;
+  timeout_ms: number;
+  interval_seconds: number;
+  enabled: number;
+  /** 状态变化推送开关：1 = 推送，0 = 静默 */
+  notify: number;
+  /** 状态变化通知渠道 id 的 JSON 数组；NULL = 全部渠道（仅 notify=1 时有意义） */
+  notify_channel_ids: string | null;
+  /** 连续失败 N 次才判 down（防抖） */
+  fail_threshold: number;
+  /** down / up 状态转换时联动触发的任务；NULL = 不联动 */
+  on_down_job_id: number | null;
+  on_up_job_id: number | null;
+  /** 运行状态（调度器维护）：pending=尚未探测 / up / down */
+  status: "pending" | "up" | "down";
+  /** 连续失败计数；成功清零；手动启停时重置 */
+  fail_streak: number;
+  last_latency_ms: number | null;
+  next_run_at: number;
+  last_run_at: number | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export type HeartbeatRow = {
+  id: number;
+  monitor_id: number;
+  created_at: number;
+  status: "up" | "down";
+  http_status: number | null;
+  latency_ms: number | null;
+  error_message: string | null;
+};

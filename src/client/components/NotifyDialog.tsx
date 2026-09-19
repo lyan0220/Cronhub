@@ -35,6 +35,12 @@ const CHANNEL_TYPES: { value: ChannelType; hint: string; placeholder: string }[]
 
 const TYPE_LABEL = CHANNEL_TYPE_LABEL;
 
+/** 消息样例：与 monitor_down 事件的实际推送文案一致（纯文本渠道的最终观感） */
+const SAMPLE_NOTIFY = [
+  "[内网管理后台] [🔴 宕机] 探测超时（10s 无响应）",
+  "已联动触发「故障自动重启」",
+].join("\n");
+
 /**
  * 通知渠道管理：渠道列表（地址明文可见、随时编辑）+ 单渠道测试 + 全局自动停用阈值。
  * 任务在表单里选择「失败通知」发到哪个渠道。
@@ -241,6 +247,16 @@ export default function NotifyDialog({ open, onClose }: { open: boolean; onClose
               仅统计定时触发的失败，成功即清零重新计数；设为 0 表示不自动停用。
             </p>
           </section>
+
+          <details className="rounded-lg border border-border px-3 py-2.5">
+            <summary className="cursor-pointer text-xs font-medium text-fg-muted">消息格式预览</summary>
+            <pre className="mt-2 overflow-x-auto rounded-md bg-surface px-3 py-2 font-mono text-xs whitespace-pre-wrap text-fg-muted">{SAMPLE_NOTIFY}</pre>
+            <p className="mt-2 text-xs text-fg-subtle">
+              每条通知一行：「[对象名] [状态] 原因」，状态带 emoji（🔴 宕机、✅ 恢复、❌ 失败、⛔ 自动停用、🔑 PAT
+              失效、🔔 测试）；仅联动触发这类罕见信息才另起一行。企业微信与 Telegram 渠道首行加粗；飞书 / Bark /
+              通用 JSON 为上述纯文本。
+            </p>
+          </details>
         </div>
       ) : (
         <form onSubmit={e => { e.preventDefault(); void saveChannel(); }} noValidate>

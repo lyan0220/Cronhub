@@ -3,14 +3,15 @@ import { Link } from "react-router-dom";
 import { get } from "../api";
 import PageHeader from "../components/PageHeader";
 import type { Job, Run, Stats } from "../types";
+import { SOURCE_LABEL } from "../types";
 import { Card, EmptyState, Skeleton, SkeletonCard, Button, cx } from "../ui";
-import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, Inbox, LoaderCircle, Play, RefreshCw, Timer, Users } from "../ui/icons";
+import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, HeartPulse, Inbox, LoaderCircle, Play, RefreshCw, Timer, Users } from "../ui/icons";
 import { fmtShort, fmtShortTz, relativeTime } from "../utils/time";
 import { useAlive } from "../utils/useAlive";
 import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { describeLocal, displayTzOf, parseSchedule } from "./Jobs/schedule";
 
-type StatKey = "accounts" | "total_jobs" | "enabled_jobs" | "today_runs" | "failed_24h" | "gh_failed_24h" | "success_rate_7d";
+type StatKey = "accounts" | "total_jobs" | "enabled_jobs" | "total_monitors" | "down_monitors" | "today_runs" | "failed_24h" | "gh_failed_24h" | "success_rate_7d";
 
 type StatCard = {
   key: StatKey;
@@ -27,9 +28,11 @@ const CARDS: StatCard[] = [
   { key: "accounts", label: "账号", icon: <Users className="size-4" /> },
   { key: "total_jobs", label: "任务总数", icon: <Timer className="size-4" /> },
   { key: "enabled_jobs", label: "已启用", icon: <Play className="size-4" /> },
+  { key: "total_monitors", label: "监控", icon: <HeartPulse className="size-4" /> },
   { key: "today_runs", label: "今日运行", icon: <Clock className="size-4" /> },
   { key: "failed_24h", label: "触发失败", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/runs?status=failed" },
   { key: "gh_failed_24h", label: "workflow 失败", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/runs?gh=failed" },
+  { key: "down_monitors", label: "监控故障", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/monitors" },
   { key: "success_rate_7d", label: "7 天成功率", icon: <CircleCheck className="size-4" />, suffix: "%" },
 ];
 
@@ -87,7 +90,7 @@ export default function Dashboard() {
     <div>
       <PageHeader title="仪表盘" description="定时任务的运行概况与接下来的触发计划。" />
 
-      <div aria-busy={stats === null && !statsError} className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div aria-busy={stats === null && !statsError} className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {statsError ? (
           <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger">
             <span>统计数据加载失败。</span>
@@ -199,7 +202,7 @@ export default function Dashboard() {
                       <span title={iconTitle} className="shrink-0">{icon}</span>
                       <span className="min-w-0 truncate font-medium">{r.job_name ?? `任务#${r.job_id}`}</span>
                     </div>
-                    <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-sm:hidden">{r.source === "manual" ? "手动" : "定时"}</span>
+                    <span className="min-w-0 truncate whitespace-nowrap text-xs text-fg-subtle @max-sm:hidden">{SOURCE_LABEL[r.source] ?? "定时"}</span>
                     <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted">{fmtShort(r.triggered_at)}</span>
                     <span className={cx("whitespace-nowrap text-xs tabular-nums", bad ? "font-medium text-danger" : "text-fg-subtle")}>{relativeTime(r.triggered_at)}</span>
                   </div>

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getChannel, getChannels, isNotifyType, sendNotify, type ChannelRow } from "../notify";
+import { getChannel, getChannels, isNotifyType, notifyTest, sendNotify, type ChannelRow } from "../notify";
 import { KEY_AUTO_PAUSE_THRESHOLD, getAutoPauseThreshold, setSetting } from "../settings";
 import type { Env } from "../types";
 
@@ -70,11 +70,7 @@ notifyRoutes.delete("/channels/:id", async (c) => {
 notifyRoutes.post("/channels/:id/test", async (c) => {
   const ch = await getChannel(c.env, Number(c.req.param("id")));
   if (!ch) return c.json({ ok: false, error: "渠道不存在" }, 404);
-  const delivered = await sendNotify(ch, {
-    event: "test",
-    title: "Cronhub 测试通知",
-    body: `这是一条发送到「${ch.name}」的测试消息。收到即说明该渠道配置正确。`,
-  });
+  const delivered = await sendNotify(ch, notifyTest({ channelName: ch.name }));
   if (!delivered) return c.json({ ok: false, error: "发送失败：Webhook 未返回成功状态，请检查地址是否有效" }, 502);
   return c.json({ ok: true, data: null });
 });

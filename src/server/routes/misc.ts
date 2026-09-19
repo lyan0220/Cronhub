@@ -15,6 +15,8 @@ miscRoutes.get("/stats", async (c) => {
          (SELECT COUNT(*) FROM accounts) AS accounts,
          (SELECT COUNT(*) FROM jobs) AS total_jobs,
          (SELECT COUNT(*) FROM jobs WHERE enabled=1) AS enabled_jobs,
+         (SELECT COUNT(*) FROM monitors) AS total_monitors,
+         (SELECT COUNT(*) FROM monitors WHERE enabled=1 AND status='down') AS down_monitors,
          (SELECT COUNT(*) FROM runs WHERE triggered_at>=?) AS today_runs,
          (SELECT COUNT(*) FROM runs WHERE triggered_at>=? AND status='failed') AS failed_24h,
          (SELECT COUNT(*) FROM runs WHERE triggered_at>=? AND status='success'

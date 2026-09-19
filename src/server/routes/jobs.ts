@@ -16,8 +16,9 @@ function isValidRef(ref: string): boolean {
   return SLUG_RE.test(ref) && !ref.startsWith(".") && !ref.includes("..") && !ref.endsWith(".lock");
 }
 
-/** 校验所选通知渠道都存在（渠道可能被并发删除）；返回错误文案或 null */
-async function assertChannelsExist(env: Env, idsJson: string | null): Promise<string | null> {
+/** 校验所选通知渠道都存在（渠道可能被并发删除）；返回错误文案或 null。
+ * 任务的失败通知与监控的状态变化通知共用同一组渠道。 */
+export async function assertChannelsExist(env: Env, idsJson: string | null): Promise<string | null> {
   if (!idsJson) return null;
   const ids = JSON.parse(idsJson) as number[];
   const rows = await env.DB.prepare("SELECT id FROM notify_channels").all<{ id: number }>();
@@ -178,8 +179,11 @@ jobRoutes.post("/:id/trigger", async (c) => {
 
 jobRoutes.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  // batch 是原子事务：原先两条顺序执行，中间失败会留下「runs 删了、job 还在」的半删状态
+  // batch 是原子事务：原先两条顺序执行，中间失败会留下「runs 删了、job 还在」的半删状态。
+  // 联动引用一并置空：删除被监控联动的任务后，monitors 不留悬挂 id。
   await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE monitors SET on_down_job_id=NULL, updated_at=? WHERE on_down_job_id=?").bind(Date.now(), id),
+    c.env.DB.prepare("UPDATE monitors SET on_up_job_id=NULL, updated_at=? WHERE on_up_job_id=?").bind(Date.now(), id),
     c.env.DB.prepare("DELETE FROM runs WHERE job_id=?").bind(id),
     c.env.DB.prepare("DELETE FROM jobs WHERE id=?").bind(id),
   ]);

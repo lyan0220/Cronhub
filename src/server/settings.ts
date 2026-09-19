@@ -12,6 +12,9 @@ export const KEY_SCHEDULER_HEARTBEAT = "scheduler_last_run_at";
 export const KEY_AUTO_PAUSE_THRESHOLD = "notify_auto_pause_threshold";
 /** 运行记录保留期默认值（天），与调度器/清理接口的兜底一致 */
 export const DEFAULT_RUN_RETENTION_DAYS = 90;
+/** 心跳记录保留期（天）：每监控每天最多 720 条（2 分钟粒度），默认 30 天控制数据量 */
+export const KEY_HEARTBEATS_RETENTION = "heartbeats_retention_days";
+export const DEFAULT_HEARTBEAT_RETENTION_DAYS = 30;
 
 /** 读取单个配置；无缓存（调用频率低：改密/改保留期/每 5 分钟的调度清理）。 */
 export async function getSetting(env: Env, key: string): Promise<string | null> {

@@ -1,10 +1,13 @@
 import { computeNextRun, validateSchedule } from "./schedule";
 import { decryptText } from "./crypto";
 import { triggerGithub } from "./github";
-import { sendNotify, getChannels, type ChannelRow, type NotifyPayload } from "./notify";
+import { notifyAccountInvalid, notifyJobAutoPaused, notifyJobFailed, sendNotify, getChannels, type ChannelRow, type NotifyPayload } from "./notify";
 import { pollGhRuns } from "./runtrack";
 import { DEFAULT_RUN_RETENTION_DAYS, KEY_RUNS_RETENTION, KEY_SCHEDULER_HEARTBEAT, getAutoPauseThreshold, getSetting, setSetting } from "./settings";
 import type { AccountRow, Env, JobRow } from "./types";
+
+/** 运行记录来源：schedule=定时调度 / manual=手动触发 / monitor=监控联动 */
+export type TriggerSource = "schedule" | "manual" | "monitor";
 
 export type TriggerOutcome = { ok: boolean; httpStatus: number; error?: string };
 
@@ -14,7 +17,7 @@ const SCHEDULE_CONCURRENCY = 8;
 /** scheduled 入口的等待钩子（ExecutionContext 的结构子集），便于测试注入 */
 export type WaitUntilHost = { waitUntil(promise: Promise<unknown>): void };
 
-async function recordRun(env: Env, jobId: number, source: "schedule" | "manual", status: string, httpStatus: number, error: string | null) {
+async function recordRun(env: Env, jobId: number, source: TriggerSource, status: string, httpStatus: number, error: string | null) {
   // 成功触发的行置 waiting 进入追踪队列，由 runtrack 轮询回填 GitHub 真实结果；
   // 触发本身失败的行没有 run 可言，gh_state 保持 NULL 不追踪。
   const ghState = status === "success" ? "waiting" : null;
@@ -25,7 +28,7 @@ async function recordRun(env: Env, jobId: number, source: "schedule" | "manual",
     .run();
 }
 
-export async function dispatchJob(env: Env, job: JobRow, account: AccountRow, source: "schedule" | "manual"): Promise<TriggerOutcome> {
+export async function dispatchJob(env: Env, job: JobRow, account: AccountRow, source: TriggerSource): Promise<TriggerOutcome> {
   let token: string;
   try {
     token = await decryptText(account.token_encrypted, env.TOKEN_ENC_KEY);
@@ -51,7 +54,7 @@ export async function dispatchJob(env: Env, job: JobRow, account: AccountRow, so
   return { ok: result.ok, httpStatus: result.httpStatus, error: result.ok ? undefined : result.error };
 }
 
-export async function triggerJobOnce(env: Env, jobId: number, source: "schedule" | "manual"): Promise<TriggerOutcome | { notFound: true }> {
+export async function triggerJobOnce(env: Env, jobId: number, source: TriggerSource): Promise<TriggerOutcome | { notFound: true }> {
   const job = await env.DB.prepare("SELECT * FROM jobs WHERE id=?").bind(jobId).first<JobRow>();
   if (!job) return { notFound: true };
   const account = await env.DB.prepare("SELECT * FROM accounts WHERE id=?").bind(job.account_id).first<AccountRow>();
@@ -158,27 +161,15 @@ export async function runDueJobs(env: Env, now: number = Date.now(), ctx?: WaitU
           notifications.push({
             channels: jobChannels,
             payload: paused
-              ? {
-                  event: "job_auto_paused",
-                  title: "任务已自动停用",
-                  body: `「${job.name}」连续失败 ${streak} 次，已自动停用。\n目标：${job.repo}\n最近错误：${result.error ?? "-"}`,
-                }
-              : {
-                  event: "job_failed",
-                  title: "任务触发失败",
-                  body: `「${job.name}」触发失败（连续第 ${streak} 次）。\n目标：${job.repo}\n错误：${result.error ?? "-"}`,
-                },
+              ? notifyJobAutoPaused({ name: job.name, error: result.error })
+              : notifyJobFailed({ name: job.name, error: result.error }),
           });
         }
         if (result.httpStatus === 401 && channels.length > 0 && !invalidNotified.has(account.id)) {
           invalidNotified.add(account.id);
           notifications.push({
             channels,
-            payload: {
-              event: "account_invalid",
-              title: "GitHub 账号 PAT 已失效",
-              body: `账号「${account.name}」的 PAT 触发 401，已被标记失效，其任务将无法触发，请到「账号」页更新。`,
-            },
+            payload: notifyAccountInvalid({ name: account.name }),
           });
         }
       }

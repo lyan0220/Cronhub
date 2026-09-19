@@ -58,6 +58,50 @@ const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_runs_gh_pending ON runs(gh_state, triggered_at)`,
     ],
   },
+  {
+    // HTTP 心跳监控（src/server/monitor.ts）：monitors 定义与运行状态、heartbeats
+    // 每次探测记录。字段语义详见 schema.sql 同名表的注释。
+    id: 3,
+    name: "heartbeat-monitors",
+    statements: [
+      `CREATE TABLE IF NOT EXISTS monitors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        method TEXT NOT NULL DEFAULT 'GET' CHECK (method IN ('GET','HEAD')),
+        expected_status INTEGER NOT NULL DEFAULT 0,
+        keyword TEXT,
+        headers_json TEXT,
+        timeout_ms INTEGER NOT NULL DEFAULT 10000,
+        interval_seconds INTEGER NOT NULL DEFAULT 300,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        notify INTEGER NOT NULL DEFAULT 0,
+        notify_channel_ids TEXT,
+        fail_threshold INTEGER NOT NULL DEFAULT 1,
+        on_down_job_id INTEGER REFERENCES jobs(id),
+        on_up_job_id INTEGER REFERENCES jobs(id),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','up','down')),
+        fail_streak INTEGER NOT NULL DEFAULT 0,
+        last_latency_ms INTEGER,
+        next_run_at INTEGER NOT NULL,
+        last_run_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_monitors_due ON monitors(enabled, next_run_at)`,
+      `CREATE TABLE IF NOT EXISTS heartbeats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        monitor_id INTEGER NOT NULL REFERENCES monitors(id),
+        created_at INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('up','down')),
+        http_status INTEGER,
+        latency_ms INTEGER,
+        error_message TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_heartbeats_monitor ON heartbeats(monitor_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_heartbeats_time ON heartbeats(created_at)`,
+    ],
+  },
 ];
 
 let migrated = false;

@@ -4,7 +4,7 @@
 // 绝不外抛、绝不影响触发循环本身。
 import { decryptText } from "./crypto";
 import { getWorkflowRun, listWorkflowRuns, type WorkflowRunSummary } from "./github";
-import { sendNotify, type ChannelRow, type NotifyPayload } from "./notify";
+import { notifyWorkflowFailed, sendNotify, type ChannelRow, type NotifyPayload } from "./notify";
 import type { AccountRow, Env, JobRow } from "./types";
 
 /** 触发后超过这么久仍没等到 workflow 完成（或连 run 都没匹配到）就放弃，
@@ -177,11 +177,11 @@ export async function pollGhRuns(
           if (targets.length > 0) {
             notifications.push({
               channels: targets,
-              payload: {
-                event: "workflow_failed",
-                title: "Workflow 执行失败",
-                body: `「${row.job_name}」触发的 workflow 执行失败（${current.conclusion}）。\n目标：${row.repo}\n详情：${current.html_url}`,
-              },
+              payload: notifyWorkflowFailed({
+                name: row.job_name ?? `任务#${row.job_id}`,
+                conclusion: current.conclusion ?? "unknown",
+                runUrl: current.html_url,
+              }),
             });
           }
         }

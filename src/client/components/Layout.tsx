@@ -4,7 +4,7 @@ import { get, post } from "../api";
 import type { Stats } from "../types";
 import { Menu } from "../ui";
 import {
-  BellRing, ChevronDown, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, UserRound, Users, X,
+  BellRing, ChevronDown, HeartPulse, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, ScrollText, Timer, UserRound, Users, X,
   type LucideIcon,
 } from "../ui/icons";
 import { cx, focusRing } from "../ui/styles";
@@ -15,13 +15,14 @@ import ThemeToggle from "./ThemeToggle";
 
 type Link = {
   to: string; label: string; end: boolean; Icon: LucideIcon;
-  count?: "accounts" | "total_jobs";
+  count?: "accounts" | "total_jobs" | "total_monitors";
 };
 
 const LINKS: Link[] = [
   { to: "/", label: "仪表盘", end: true, Icon: LayoutDashboard },
   { to: "/accounts", label: "账号", end: false, Icon: Users, count: "accounts" },
   { to: "/jobs", label: "任务", end: false, Icon: Timer, count: "total_jobs" },
+  { to: "/monitors", label: "监控", end: false, Icon: HeartPulse, count: "total_monitors" },
   { to: "/runs", label: "运行记录", end: false, Icon: ScrollText },
 ];
 

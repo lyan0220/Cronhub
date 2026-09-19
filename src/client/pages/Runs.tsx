@@ -4,6 +4,7 @@ import { get, errText } from "../api";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import type { Job, Run } from "../types";
+import { SOURCE_LABEL } from "../types";
 import { Badge, Button, EmptyState, Segmented, Select, Skeleton, cx, focusRing } from "../ui";
 import { ChevronDown, ChevronLeft, ChevronRight, Inbox, LoaderCircle, Trash2 } from "../ui/icons";
 import { fmtTime } from "../utils/time";
@@ -217,7 +218,7 @@ export default function Runs() {
                       bad ? "border-l-danger" : "border-l-success",
                     )}>{fmtTime(r.triggered_at)}</td>
                     <td className="p-3">{r.job_name ?? `任务#${r.job_id}`}</td>
-                    <td className="p-3 text-xs text-fg-muted">{r.source === "manual" ? "手动" : "定时"}</td>
+                    <td className="p-3 text-xs text-fg-muted">{SOURCE_LABEL[r.source] ?? "定时"}</td>
                     <td className="p-3 whitespace-nowrap">
                       {canExpand ? (
                         <button type="button"
