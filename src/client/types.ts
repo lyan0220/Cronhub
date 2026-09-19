@@ -88,8 +88,8 @@ export type Monitor = {
   name: string;
   url: string;
   method: "GET" | "HEAD";
-  /** 0 = 任意 2xx 即成功；其余为精确状态码 */
-  expected_status: number;
+  /** 期望状态码：逗号分隔的单码或区间，默认 "200-299" */
+  expected_status: string;
   keyword: string | null;
   headers_json: string | null;
   timeout_ms: number;

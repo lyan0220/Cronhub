@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS monitors (
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   method TEXT NOT NULL DEFAULT 'GET' CHECK (method IN ('GET','HEAD')),
-  expected_status INTEGER NOT NULL DEFAULT 0,
+  -- 期望状态码：逗号分隔的单码或区间（"200" / "200,204" / "200-299"），
+  -- 缺省 200-299（任意 2xx）；旧版数值（0 / N）由读取侧解析兼容
+  expected_status TEXT NOT NULL DEFAULT '200-299',
   keyword TEXT,
   headers_json TEXT,
   timeout_ms INTEGER NOT NULL DEFAULT 10000,
@@ -146,7 +148,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 -- notify_channels：通知渠道（Webhook 目标），可配置多个，供任务失败与监控状态变化推送共用。
 
 -- monitors：HTTP 心跳监控（周期性探测 http(s) 地址，状态变化推送通知并联动触发任务）。
---   expected_status   0 = 任意 2xx 即成功；其余为精确状态码断言。
+--   expected_status   期望状态码：逗号分隔的单码或区间（"200" / "200,204" / "200-299"），
+--                     缺省 200-299（任意 2xx）；旧数值 0 同此、N 视为单码。
 --   keyword           响应体包含判定（子串匹配），仅 GET 有意义；NULL = 不检查。
 --   headers_json      自定义请求头 JSON 对象，合并覆盖默认头（默认浏览器 UA，模拟真实访问）。
 --   interval_seconds  最小 120：受平台 Cron 触发粒度（每 2 分钟）限制。

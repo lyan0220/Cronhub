@@ -54,8 +54,8 @@ export type MonitorRow = {
   name: string;
   url: string;
   method: "GET" | "HEAD";
-  /** 0 = 任意 2xx 即成功；其余为精确状态码断言 */
-  expected_status: number;
+  /** 期望状态码：逗号分隔的单码或区间字符串（"200" / "200,204" / "200-299"）；旧行为数字（0 = 任意 2xx） */
+  expected_status: number | string;
   /** 响应体包含判定子串；NULL = 不检查（仅 GET 有意义） */
   keyword: string | null;
   /** 自定义请求头 JSON 对象；NULL = 仅默认头 */

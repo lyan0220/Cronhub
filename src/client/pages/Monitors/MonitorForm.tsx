@@ -7,8 +7,8 @@ export type MonitorFormData = {
   name: string;
   url: string;
   method: "GET" | "HEAD";
-  /** 0 = 任意 2xx 即成功；其余为精确状态码 */
-  expected_status: number;
+  /** 逗号分隔的单码或区间（"200-299" / "200,204"），默认 "200-299" */
+  expected_status: string;
   keyword: string;
   headers_json: string;
   /** 表单以秒/分钟为单位，提交时换算回 ms/seconds */
@@ -24,17 +24,39 @@ export type MonitorFormData = {
 };
 
 export const EMPTY_FORM: MonitorFormData = {
-  name: "", url: "", method: "GET", expected_status: 0, keyword: "",
+  name: "", url: "", method: "GET", expected_status: "200-299", keyword: "",
   headers_json: "", timeout_sec: 10, interval_min: 5, fail_threshold: 1,
   notify: 0, channelIds: null, on_down_job_id: 0, on_up_job_id: 0,
 };
 
-type Key = "name" | "url" | "timeout_sec" | "interval_min" | "fail_threshold" | "headers_json";
+type Key = "name" | "url" | "timeout_sec" | "interval_min" | "fail_threshold" | "headers_json" | "expected_status";
 
 const ALL_TOUCHED: Record<Key, boolean> = {
   name: true, url: true, timeout_sec: true,
-  interval_min: true, fail_threshold: true, headers_json: true,
+  interval_min: true, fail_threshold: true, headers_json: true, expected_status: true,
 };
+
+/** 校验状态码输入：逗号分隔的单码或区间，与服务端规则一致 */
+function validateCodes(v: string): string | null {
+  const tokens = v.trim().split(",").map(t => t.trim()).filter(Boolean);
+  if (tokens.length === 0) return null; // 留空 = 默认 200-299
+  if (tokens.length > 10) return "状态码最多 10 个";
+  for (const t of tokens) {
+    if (/^\d{3}$/.test(t)) {
+      const n = Number(t);
+      if (n < 100 || n > 599) return "状态码应为 100-599 的整数";
+      continue;
+    }
+    const m = /^(\d{3})-(\d{3})$/.exec(t);
+    if (m) {
+      const a = Number(m[1]), b = Number(m[2]);
+      if (a > b || a < 100 || b > 599) return "区间格式应为 200-299（起点 ≤ 终点）";
+      continue;
+    }
+    return "格式如 200 或 200-299，多个用英文逗号分隔";
+  }
+  return null;
+}
 
 function validateUrl(url: string): string | null {
   const t = url.trim();
@@ -72,6 +94,7 @@ function validate(f: MonitorFormData): Record<Key, string | null> {
     interval_min: intIn(f.interval_min, 2, 1440),
     fail_threshold: intIn(f.fail_threshold, 1, 10),
     headers_json: validateHeadersJson(f.headers_json),
+    expected_status: validateCodes(f.expected_status),
   };
 }
 
@@ -149,20 +172,12 @@ export default function MonitorForm({
             />
             <p className="mt-1.5 text-xs text-fg-muted">HEAD 不读取响应体，更省流量；需要关键词检查时请用 GET。</p>
           </div>
-          <Field label="期望状态码" hint="「任意 2xx」最常用；反代返回 401/302 的内网服务可指定具体码">
-            {({ id }) => (
-              <div className="flex gap-2">
-                <Select id={id} className="w-40" value={form.expected_status === 0 ? "any" : "custom"}
-                  onChange={e => set({ expected_status: e.target.value === "any" ? 0 : form.expected_status === 0 ? 200 : form.expected_status })}>
-                  <option value="any">任意 2xx</option>
-                  <option value="custom">指定状态码…</option>
-                </Select>
-                {form.expected_status !== 0 && (
-                  <Input type="number" min={100} max={599} aria-label="期望状态码" className="w-28"
-                    value={form.expected_status}
-                    onChange={e => set({ expected_status: Number(e.target.value) || 0 })} />
-                )}
-              </div>
+          <Field label="期望状态码" hint="默认 200-299（任意 2xx）；支持多个或区间，如 200,204、301-302。反代 401/302 的内网服务可填具体码"
+            error={err("expected_status")}>
+            {({ id, describedBy }) => (
+              <Input id={id} aria-describedby={describedBy} invalid={!!err("expected_status")}
+                value={form.expected_status} placeholder="200" className="font-mono w-40" onBlur={touch("expected_status")}
+                onChange={e => set({ expected_status: e.target.value })} />
             )}
           </Field>
           <Field label="关键词（可选）" hint="响应体需包含该子串才算正常；留空不检查。仅 GET 生效">
@@ -189,7 +204,7 @@ export default function MonitorForm({
                   onChange={e => set({ interval_min: Number(e.target.value) })} />
               )}
             </Field>
-            <Field label="失败阈值" hint="连续失败 N 次才判定宕机，防止瞬时抖动误报" error={err("fail_threshold")}>
+            <Field label="失败阈值" hint="连续失败 N 次才判定离线，防止瞬时抖动误报" error={err("fail_threshold")}>
               {({ id, describedBy }) => (
                 <Input id={id} aria-describedby={describedBy} invalid={!!err("fail_threshold")}
                   type="number" min={1} max={10} value={form.fail_threshold} onBlur={touch("fail_threshold")}
@@ -210,7 +225,7 @@ export default function MonitorForm({
         <Group title="状态变化通知">
           <div>
             <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5">
-              <span className="text-sm text-fg">宕机 / 恢复时推送</span>
+              <span className="text-sm text-fg">离线 / 恢复时推送</span>
               <Switch checked={form.notify === 1} label="状态变化通知"
                 onChange={v => set({ notify: v ? 1 : 0 })} />
             </div>
@@ -248,7 +263,7 @@ export default function MonitorForm({
         </Group>
 
         <Group title="任务联动">
-          <Field label="宕机时触发" hint="判定宕机的瞬间触发一次该任务（如自动重启 / 故障切换），不受任务启用状态限制">
+          <Field label="离线时触发" hint="判定离线的瞬间触发一次该任务（如自动重启 / 故障切换），不受任务启用状态限制">
             {({ id }) => (
               <Select id={id} value={form.on_down_job_id}
                 onChange={e => set({ on_down_job_id: Number(e.target.value) })}>
@@ -257,7 +272,7 @@ export default function MonitorForm({
               </Select>
             )}
           </Field>
-          <Field label="恢复时触发" hint="从宕机恢复的瞬间触发一次该任务（如恢复流量 / 发送善后通知）">
+          <Field label="恢复时触发" hint="从离线恢复的瞬间触发一次该任务（如恢复流量 / 发送善后通知）">
             {({ id }) => (
               <Select id={id} value={form.on_up_job_id}
                 onChange={e => set({ on_up_job_id: Number(e.target.value) })}>

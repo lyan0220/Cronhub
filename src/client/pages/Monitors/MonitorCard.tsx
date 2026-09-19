@@ -50,8 +50,8 @@ export default function MonitorCard({ monitor: m, beats, probing, onToggle, onPr
       </div>
 
       {(m.on_down_job_name || m.on_up_job_name) && (
-        <p className="truncate text-xs text-fg-subtle" title={`宕机联动：${m.on_down_job_name ?? "无"} / 恢复联动：${m.on_up_job_name ?? "无"}`}>
-          联动：{[m.on_down_job_name && `宕机→${m.on_down_job_name}`, m.on_up_job_name && `恢复→${m.on_up_job_name}`].filter(Boolean).join("，")}
+        <p className="truncate text-xs text-fg-subtle" title={`离线联动：${m.on_down_job_name ?? "无"} / 恢复联动：${m.on_up_job_name ?? "无"}`}>
+          联动：{[m.on_down_job_name && `离线→${m.on_down_job_name}`, m.on_up_job_name && `恢复→${m.on_up_job_name}`].filter(Boolean).join("，")}
         </p>
       )}
 

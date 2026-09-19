@@ -1,5 +1,5 @@
 // HTTP 心跳监控：周期性探测外部地址（默认浏览器 UA + 可自定义请求头，模拟真实
-// 访问），状态变化推送通知并可联动触发任务（宕机自动恢复场景）。探测是尽力而为：
+// 访问），状态变化推送通知并可联动触发任务（离线自动恢复场景）。探测是尽力而为：
 // 单个监控的任何异常只影响自己，绝不拖垮其余监控与调度循环。
 import { notifyLinkJobFailed, notifyMonitorDown, notifyMonitorUp, getChannels, sendNotify, type ChannelRow, type NotifyPayload } from "./notify";
 import { triggerJobOnce, type WaitUntilHost } from "./scheduler";
@@ -57,6 +57,29 @@ async function drainBody(res: Response): Promise<void> {
   try { await res.body?.cancel(); } catch { /* 已结束的流 cancel 会报错，忽略 */ }
 }
 
+/**
+ * 解析期望状态码配置为区间列表：紧凑字符串（"200" / "200,204" / "200-299"）
+ * 与旧数字（0 = 任意 2xx，N = 单码）均兼容，无法解析时兜底 200-299。
+ */
+export function parseExpectedCodes(raw: unknown): Array<[number, number]> {
+  if (typeof raw === "number") return raw === 0 ? [[200, 299]] : [[raw, raw]];
+  if (typeof raw !== "string") return [[200, 299]];
+  const ranges: Array<[number, number]> = [];
+  for (const t of raw.split(",").map(s => s.trim()).filter(Boolean)) {
+    const m = /^(\d{3})-(\d{3})$/.exec(t);
+    if (m) { ranges.push([Number(m[1]), Number(m[2])]); continue; }
+    if (/^\d{3}$/.test(t)) { const n = Number(t); ranges.push([n, n]); }
+  }
+  return ranges.length ? ranges : [[200, 299]];
+}
+
+/** 区间列表的规范字符串形式（"200" / "200-299" / "200,204"），列表接口与错误文案用 */
+export function normalizeExpectedCodes(raw: unknown): string {
+  return parseExpectedCodes(raw)
+    .map(([lo, hi]) => (lo === hi ? String(lo) : `${lo}-${hi}`))
+    .join(",");
+}
+
 export async function probeMonitor(monitor: MonitorRow, fetchFn: typeof fetch = fetch): Promise<ProbeResult> {
   const started = performance.now();
   const headers: Record<string, string> = { ...DEFAULT_HEADERS };
@@ -93,18 +116,15 @@ export async function probeMonitor(monitor: MonitorRow, fetchFn: typeof fetch = 
     };
   }
   const latency = Math.round(performance.now() - started);
-  const expectedOk = monitor.expected_status === 0
-    ? res.status >= 200 && res.status < 300
-    : res.status === monitor.expected_status;
+  const ranges = parseExpectedCodes(monitor.expected_status);
+  const expectedOk = ranges.some(([lo, hi]) => res.status >= lo && res.status <= hi);
   if (!expectedOk) {
     await drainBody(res);
     return {
       status: "down",
       http_status: res.status,
       latency_ms: latency,
-      error: monitor.expected_status === 0
-        ? `状态码 ${res.status}（期望 2xx）`
-        : `状态码 ${res.status}（期望 ${monitor.expected_status}）`,
+      error: `状态码 ${res.status}（期望 ${normalizeExpectedCodes(monitor.expected_status)}）`,
     };
   }
   // 关键词检查只在 GET 上进行（HEAD 无响应体）

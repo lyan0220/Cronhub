@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { probeAndRecord } from "../monitor";
+import { normalizeExpectedCodes, probeAndRecord } from "../monitor";
 import { assertChannelsExist } from "./jobs";
 import { DEFAULT_HEARTBEAT_RETENTION_DAYS, KEY_HEARTBEATS_RETENTION, getSetting, setSetting } from "../settings";
 import type { Env, MonitorRow } from "../types";
@@ -12,7 +12,8 @@ type MonitorInput = {
   name: string;
   url: string;
   method: "GET" | "HEAD";
-  expected_status: number;
+  /** 逗号分隔的单码或区间（"200" / "200,204" / "200-299"） */
+  expected_status: string;
   keyword: string | null;
   headers_json: string | null;
   timeout_ms: number;
@@ -24,6 +25,34 @@ type MonitorInput = {
   on_down_job_id: number | null;
   on_up_job_id: number | null;
 };
+
+/** 校验并规范化状态码输入，缺省 200-299（任意 2xx） */
+function normalizeCodesInput(v: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  const raw = typeof v === "number" ? String(v) : typeof v === "string" ? v.trim() : "";
+  if (!raw) return { ok: true, value: "200-299" };
+  const tokens = raw.split(",").map(t => t.trim()).filter(Boolean);
+  if (tokens.length > 10) return { ok: false, error: "状态码最多 10 个" };
+  const ranges: Array<[number, number]> = [];
+  for (const t of tokens) {
+    const single = /^(\d{3})$/.exec(t);
+    if (single) {
+      const n = Number(t);
+      if (n < 100 || n > 599) return { ok: false, error: "状态码应为 100-599 的整数" };
+      ranges.push([n, n]);
+      continue;
+    }
+    const span = /^(\d{3})-(\d{3})$/.exec(t);
+    if (span) {
+      const lo = Number(span[1]), hi = Number(span[2]);
+      if (lo > hi || lo < 100 || hi > 599) return { ok: false, error: "状态码区间格式应为 200-299（起点 ≤ 终点）" };
+      ranges.push([lo, hi]);
+      continue;
+    }
+    return { ok: false, error: "状态码格式应为 200 或 200-299，多个用英文逗号分隔" };
+  }
+  ranges.sort((x, y) => x[0] - y[0]);
+  return { ok: true, value: ranges.map(([lo, hi]) => (lo === hi ? String(lo) : `${lo}-${hi}`)).join(",") };
+}
 
 function validateMonitorBody(body: Record<string, unknown>): { ok: true; data: MonitorInput } | { ok: false; error: string } {
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -42,13 +71,8 @@ function validateMonitorBody(body: Record<string, unknown>): { ok: true; data: M
 
   const method = body.method === "HEAD" ? "HEAD" : "GET";
 
-  // 0 = 任意 2xx 即成功；其余精确匹配
-  const expected_status = body.expected_status === undefined || body.expected_status === null || body.expected_status === ""
-    ? 0
-    : Number(body.expected_status);
-  if (!Number.isInteger(expected_status) || (expected_status !== 0 && (expected_status < 100 || expected_status > 599))) {
-    return { ok: false, error: "期望状态码应为 0（任意 2xx）或 100-599 的整数" };
-  }
+  const expected_status = normalizeCodesInput(body.expected_status);
+  if (!expected_status.ok) return { ok: false, error: expected_status.error };
 
   let keyword: string | null = null;
   if (typeof body.keyword === "string" && body.keyword.trim()) {
@@ -111,7 +135,7 @@ function validateMonitorBody(body: Record<string, unknown>): { ok: true; data: M
 
   return {
     ok: true,
-    data: { name, url, method, expected_status, keyword, headers_json, timeout_ms, interval_seconds, enabled, notify, notify_channel_ids, fail_threshold, on_down_job_id, on_up_job_id },
+    data: { name, url, method, expected_status: expected_status.value, keyword, headers_json, timeout_ms, interval_seconds, enabled, notify, notify_channel_ids, fail_threshold, on_down_job_id, on_up_job_id },
   };
 }
 
@@ -153,7 +177,9 @@ monitorRoutes.get("/", async (c) => {
     const up7d = (row.hb_7d_up as number) ?? 0;
     return {
       ...row,
-      // 无数据时为 null（前端隐藏，避免 0% 误读为「全部宕机」）
+      // 旧版数字（0 = 任意 2xx）统一规范为新字符串形式，前端表单直接可用
+      expected_status: normalizeExpectedCodes(row.expected_status),
+      // 无数据时为 null（前端隐藏，避免 0% 误读为「全部离线」）
       uptime_24h: total24 > 0 ? Math.round((up24 / total24) * 100) : null,
       uptime_7d: total7d > 0 ? Math.round((up7d / total7d) * 100) : null,
     };

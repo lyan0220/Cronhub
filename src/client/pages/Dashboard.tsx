@@ -44,7 +44,7 @@ const CARDS: StatCard[] = [
   { key: "today_runs", label: "今日运行", icon: <Clock className="size-4" />, to: () => "/runs",
     sub: s => {
       const n = s.failed_24h + s.gh_failed_24h;
-      return n > 0 ? `失败 ${n}` : "无失败";
+      return n > 0 ? `失败 ${n}` : "全部成功";
     },
     subDanger: s => s.failed_24h + s.gh_failed_24h > 0,
     tint: s => s.failed_24h + s.gh_failed_24h > 0,

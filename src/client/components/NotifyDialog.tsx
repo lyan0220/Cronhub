@@ -37,7 +37,7 @@ const TYPE_LABEL = CHANNEL_TYPE_LABEL;
 
 /** 消息样例：与 monitor_down 事件的实际推送文案一致（纯文本渠道的最终观感） */
 const SAMPLE_NOTIFY = [
-  "[内网管理后台] [🔴 宕机] 探测超时（10s 无响应）",
+  "[内网管理后台] [🔴 离线] 探测超时（10s 无响应）",
   "已联动触发「故障自动重启」",
 ].join("\n");
 
@@ -252,7 +252,7 @@ export default function NotifyDialog({ open, onClose }: { open: boolean; onClose
             <summary className="cursor-pointer text-xs font-medium text-fg-muted">消息格式预览</summary>
             <pre className="mt-2 overflow-x-auto rounded-md bg-surface px-3 py-2 font-mono text-xs whitespace-pre-wrap text-fg-muted">{SAMPLE_NOTIFY}</pre>
             <p className="mt-2 text-xs text-fg-subtle">
-              每条通知一行：「[对象名] [状态] 原因」，状态带 emoji（🔴 宕机、✅ 恢复、❌ 失败、⛔ 自动停用、🔑 PAT
+              每条通知一行：「[对象名] [状态] 原因」，状态带 emoji（🔴 离线、✅ 恢复、❌ 失败、⛔ 自动停用、🔑 PAT
               失效、🔔 测试）；仅联动触发这类罕见信息才另起一行。企业微信与 Telegram 渠道首行加粗；飞书 / Bark /
               通用 JSON 为上述纯文本。
             </p>

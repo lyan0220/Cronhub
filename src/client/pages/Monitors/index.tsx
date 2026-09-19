@@ -210,7 +210,7 @@ export default function Monitors() {
     <div>
       <PageHeader
         title="心跳监控"
-        description="周期性探测外部地址，宕机推送告警，并可联动触发任务自动恢复。"
+        description="周期性探测外部地址，离线推送告警，并可联动触发任务自动恢复。"
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={() => setCleanupOpen(true)}>
@@ -245,7 +245,7 @@ export default function Monitors() {
         <EmptyState
           icon={<Inbox className="size-6" />}
           title="还没有监控"
-          description="添加第一个监控，持续盯着外部服务的可用性，宕机自动告警或触发恢复任务。"
+          description="添加第一个监控，持续盯着外部服务的可用性，离线自动告警或触发恢复任务。"
           action={
             <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
               新建监控

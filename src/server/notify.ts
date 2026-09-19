@@ -120,7 +120,7 @@ export function notifyAccountInvalid(p: { name: string }): NotifyPayload {
 export function notifyMonitorDown(p: { name: string; error?: string | null; linkJobName?: string | null }): NotifyPayload {
   return compose(
     "monitor_down",
-    `[${p.name}] [🔴 宕机]${p.error ? ` ${p.error}` : ""}`,
+    `[${p.name}] [🔴 离线]${p.error ? ` ${p.error}` : ""}`,
     p.linkJobName ? `已联动触发「${p.linkJobName}」` : undefined,
   );
 }
