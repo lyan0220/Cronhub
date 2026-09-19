@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { probeAndRecord } from "../monitor";
 import { assertChannelsExist } from "./jobs";
+import { DEFAULT_HEARTBEAT_RETENTION_DAYS, KEY_HEARTBEATS_RETENTION, getSetting, setSetting } from "../settings";
 import type { Env, MonitorRow } from "../types";
 
 const monitorRoutes = new Hono<{ Bindings: Env }>();
@@ -177,6 +178,36 @@ monitorRoutes.get("/beats", async (c) => {
   return c.json({ ok: true, data: out });
 });
 
+// ---- 心跳保留期与清理（约定同 /api/runs/retention | /cleanup）----
+
+monitorRoutes.get("/retention", async (c) => {
+  const v = await getSetting(c.env, KEY_HEARTBEATS_RETENTION);
+  const days = Number(v);
+  return c.json({ ok: true, data: { days: Number.isFinite(days) && days > 0 ? days : DEFAULT_HEARTBEAT_RETENTION_DAYS } });
+});
+
+monitorRoutes.put("/retention", async (c) => {
+  const body = await c.req.json<{ days?: unknown }>().catch(() => ({}) as never);
+  const days = body.days;
+  if (!Number.isInteger(days) || (days as number) < 1 || (days as number) > 3650) {
+    return c.json({ ok: false, error: "保留期必须是 1-3650 的整数（天）" }, 400);
+  }
+  await setSetting(c.env, KEY_HEARTBEATS_RETENTION, String(days));
+  return c.json({ ok: true, data: { days } });
+});
+
+// 立即按保留天数清理全部监控的心跳；日常自动清理由调度器每轮执行
+monitorRoutes.post("/cleanup", async (c) => {
+  const body = await c.req.json<{ days?: unknown }>().catch(() => ({}) as never);
+  const days = Number.isInteger(body.days) && (body.days as number) > 0
+    ? (body.days as number)
+    : DEFAULT_HEARTBEAT_RETENTION_DAYS;
+  if (days > 3650) return c.json({ ok: false, error: "保留天数不能超过 3650" }, 400);
+  const cutoff = Date.now() - days * 24 * 3600 * 1000;
+  const r = await c.env.DB.prepare("DELETE FROM heartbeats WHERE created_at < ?").bind(cutoff).run();
+  return c.json({ ok: true, data: { deleted: r.meta.changes ?? 0 } });
+});
+
 monitorRoutes.post("/", async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as never);
   const v = validateMonitorBody(body);
@@ -213,8 +244,7 @@ monitorRoutes.put("/:id", async (c) => {
   if (chErr) return c.json({ ok: false, error: chErr }, 400);
 
   const now = Date.now();
-  // 换了探测目标：旧目标的 up/down 结论不再有意义，重置状态机并把历史状态从
-  // down 直接归位 pending，避免下一次探测成功时对新目标误触发一次恢复联动。
+  // 换了探测目标：旧结论不再有意义，重置状态机，避免下次探测成功时对新目标误触发恢复联动
   const targetChanged = monitor.url !== v.data.url || monitor.method !== v.data.method;
   const status = targetChanged ? "pending" : monitor.status;
   const failStreak = targetChanged ? 0 : monitor.fail_streak;
@@ -236,8 +266,7 @@ monitorRoutes.post("/:id/toggle", async (c) => {
   const monitor = await c.env.DB.prepare("SELECT * FROM monitors WHERE id=?").bind(id).first<MonitorRow>();
   if (!monitor) return c.json({ ok: false, error: "监控不存在" }, 404);
   const newEnabled = monitor.enabled === 1 ? 0 : 1;
-  // 手动启停顺带清零 fail_streak 并立即排程：与任务启停同语义，避免旧计数
-  // 影响重新启用后的 down 判定。
+  // 手动启停清零 fail_streak 并立即排程：与任务启停同语义，避免旧计数影响 down 判定
   await c.env.DB.prepare("UPDATE monitors SET enabled=?, next_run_at=?, updated_at=?, fail_streak=0 WHERE id=?")
     .bind(newEnabled, Date.now(), Date.now(), id)
     .run();

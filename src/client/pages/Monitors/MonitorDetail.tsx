@@ -51,7 +51,6 @@ export default function MonitorDetail({ monitor, onClose }: Props) {
     setRows(null);
     setHasMore(false);
     load().catch(e => toast(errText(e), "err"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitor.id]);
 
   async function loadMore() {

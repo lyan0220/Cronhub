@@ -85,7 +85,7 @@ export default function Runs() {
     q.delete("gh");
     if (status) q.set("status", status);
     for (const [k, v] of Object.entries(next)) {
-      if (!v) q.delete(k); else q.set(k, v);
+      if (v) q.set(k, v); else q.delete(k);
     }
     setParams(q, { replace: true });
   }

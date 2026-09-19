@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { del, errText, get, post, put } from "../../api";
 import PageHeader from "../../components/PageHeader";
 import { useToast } from "../../components/Toast";
 import type { Channel, Heartbeat, Job, Monitor, ProbeOutcome } from "../../types";
 import { Button, EmptyState, Segmented, Skeleton, SkeletonCard, useConfirm } from "../../ui";
-import { Inbox, Plus } from "../../ui/icons";
+import { Inbox, Plus, Trash2 } from "../../ui/icons";
 import { cx } from "../../ui/styles";
 import { useAlive } from "../../utils/useAlive";
 import { useAutoRefresh } from "../../utils/useAutoRefresh";
@@ -12,6 +13,7 @@ import MonitorCard from "./MonitorCard";
 import MonitorDetail from "./MonitorDetail";
 import MonitorForm, { EMPTY_FORM, type MonitorFormData } from "./MonitorForm";
 import MonitorRow from "./MonitorRow";
+import MonitorsCleanupDialog from "./MonitorsCleanupDialog";
 
 type Filter = "" | "up" | "down" | "paused";
 type ViewMode = "card" | "list";
@@ -55,8 +57,15 @@ export default function Monitors() {
   const [busy, setBusy] = useState(false);
   const [probingId, setProbingId] = useState<number | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
-  const [filter, setFilter] = useState<Filter>("");
   const [view, setView] = useState<ViewMode>(loadView);
+  const [retention, setRetention] = useState(30);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  // 筛选状态同步进 URL（?status=down）：仪表盘监控卡的副行可直达故障筛选
+  const [params, setParams] = useSearchParams();
+  const rawFilter = params.get("status") ?? "";
+  const filter: Filter = FILTER_OPTIONS.some(o => o.value !== "" && o.value === rawFilter)
+    ? (rawFilter as Filter)
+    : "";
   const alive = useAlive();
 
   async function load() {
@@ -73,6 +82,7 @@ export default function Monitors() {
     load().catch(e => toast(errText(e), "err"));
     get<Job[]>("/api/jobs").then(j => { if (alive.current) setJobs(j); }).catch(() => {});
     get<{ channels: Channel[] }>("/api/notify/channels").then(d => { if (alive.current) setChannels(d.channels); }).catch(() => {});
+    get<{ days: number }>("/api/monitors/retention").then(d => { if (alive.current) setRetention(d.days); }).catch(() => {});
   }, []);
 
   // 自动刷新（60 秒）；表单打开时暂停，避免与表单快照竞态
@@ -183,6 +193,13 @@ export default function Monitors() {
     }
   }
 
+  // 改筛选写回 URL（replace 不产生历史记录），外部链接可直达某个筛选态
+  function patchFilter(v: Filter) {
+    const q = new URLSearchParams(params);
+    if (v) q.set("status", v); else q.delete("status");
+    setParams(q, { replace: true });
+  }
+
   const dirty = !!form && !!snapshot && JSON.stringify(form) !== JSON.stringify(snapshot);
   const detail = detailId === null ? null : (list ?? []).find(m => m.id === detailId) ?? null;
 
@@ -195,9 +212,14 @@ export default function Monitors() {
         title="心跳监控"
         description="周期性探测外部地址，宕机推送告警，并可联动触发任务自动恢复。"
         action={
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
-            新建监控
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={() => setCleanupOpen(true)}>
+              清理心跳
+            </Button>
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => open({ ...EMPTY_FORM })}>
+              新建监控
+            </Button>
+          </div>
         }
       />
 
@@ -208,7 +230,7 @@ export default function Monitors() {
           options={[{ value: "card", label: "卡片" }, { value: "list", label: "列表" }]}
           onChange={v => { setView(v); saveView(v); }}
         />
-        <Segmented label="状态筛选" value={filter} options={FILTER_OPTIONS} onChange={setFilter} />
+        <Segmented label="状态筛选" value={filter} options={FILTER_OPTIONS} onChange={patchFilter} />
       </div>
 
       {list === null ? (
@@ -285,6 +307,14 @@ export default function Monitors() {
       {detail && (
         <MonitorDetail monitor={detail} onClose={() => setDetailId(null)} />
       )}
+
+      <MonitorsCleanupDialog
+        open={cleanupOpen}
+        retentionDays={retention}
+        onClose={() => setCleanupOpen(false)}
+        onRetentionChanged={setRetention}
+        onCleaned={() => void load().catch(() => {})}
+      />
     </div>
   );
 }

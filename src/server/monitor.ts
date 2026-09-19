@@ -10,10 +10,9 @@ import {
 } from "./settings";
 import type { Env, MonitorRow } from "./types";
 
-/** 单轮探测并发度。单探测最坏 30s 超时，并发 5 把最坏墙钟压在 cron 触发间隙内。 */
+/** 单轮探测并发度：单探测最坏 30s 超时，并发 5 压住 cron 触发的墙钟窗口。 */
 const PROBE_CONCURRENCY = 5;
-/** 每轮唤醒探测上限。每次探测占 1 个 subrequest，Workers 免费版单次调用共 50 个，
- * 与任务派发 / GitHub 追踪 / 通知共享预算，必须设上限兜底。 */
+/** 每轮探测上限：探测与任务派发/GitHub 追踪/通知共享免费版单次调用 50 subrequest 预算。 */
 const PROBES_PER_WAKE = 20;
 /** 关键词检查最多读取的响应体字节数：只需"包含"判定，读完超大响应纯属浪费。 */
 const KEYWORD_MAX_BYTES = 1024 * 1024;
@@ -141,8 +140,8 @@ export type ProbeOutcome = {
 
 /**
  * 探测一次并落库：写 heartbeats、按状态机更新 monitors、状态转换时触发联动任务。
- * source=schedule 计入 fail_streak 并参与 down 判定；manual 只记录与恢复，
- * 不累计失败（管理员在场，对齐任务手动触发不计入无人值守保护的语义）。
+ * source=schedule 计入 fail_streak 并参与 down 判定；manual 只记录与恢复，不累计失败
+ * （管理员在场，对齐任务手动触发不计入无人值守保护的语义）。
  */
 export async function probeAndRecord(
   env: Env,
@@ -290,8 +289,8 @@ export async function runDueMonitors(
       }
     } catch (e) {
       down++;
-      // 异常发生在探测后段（落库/联动）时本轮结果丢失，写一条降级心跳保底可查；
-      // next_run_at 已在认领时推进，不会热循环，下轮按节奏正常重试。
+      // 落库/联动阶段抛错时本轮结果丢失，写一条降级心跳保底可查；
+      // next_run_at 已在认领时推进，不会热循环。
       try {
         await env.DB.prepare(
           "INSERT INTO heartbeats (monitor_id, created_at, status, http_status, latency_ms, error_message) VALUES (?,?,?,?,?,?)",
@@ -315,8 +314,8 @@ export async function runDueMonitors(
     Array.from({ length: Math.min(PROBE_CONCURRENCY, rows.length) }, () => worker()),
   );
 
-  // 通知统一在探测收尾后发送，不阻塞探测本身：有 ctx 的调度路径挂 waitUntil，
-  // 无 ctx 的调用方（测试/手动路径）就地等待。allSettled 保证单条失败不影响其余。
+  // 通知在探测收尾后统一发送（有 ctx 挂 waitUntil，无 ctx 就地等待）；
+  // allSettled 保证单条失败不影响其余。
   const tail = (async () => {
     if (notifications.length > 0 && channels.length > 0) {
       const sends: Promise<boolean>[] = [];

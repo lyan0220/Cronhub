@@ -5,35 +5,52 @@ import PageHeader from "../components/PageHeader";
 import type { Job, Run, Stats } from "../types";
 import { SOURCE_LABEL } from "../types";
 import { Card, EmptyState, Skeleton, SkeletonCard, Button, cx } from "../ui";
-import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, HeartPulse, Inbox, LoaderCircle, Play, RefreshCw, Timer, Users } from "../ui/icons";
+import { ArrowRight, Activity, CircleAlert, CircleCheck, CircleX, Clock, HeartPulse, Inbox, LoaderCircle, RefreshCw, Timer, Users } from "../ui/icons";
 import { fmtShort, fmtShortTz, relativeTime } from "../utils/time";
 import { useAlive } from "../utils/useAlive";
 import { useAutoRefresh } from "../utils/useAutoRefresh";
 import { describeLocal, displayTzOf, parseSchedule } from "./Jobs/schedule";
 
-type StatKey = "accounts" | "total_jobs" | "enabled_jobs" | "total_monitors" | "down_monitors" | "today_runs" | "failed_24h" | "gh_failed_24h" | "success_rate_7d";
-
 type StatCard = {
-  key: StatKey;
+  key: string;
   label: string;
   icon: React.ReactNode;
-  alarm?: boolean;
-  /** 数值后缀（成功率的 %）；值为 null 时显示 — */
+  /** 主数字；缺省取 stats[key] */
+  value?: (s: Stats) => number | null;
+  /** 主数字告警色判定（只染数字） */
+  danger?: (s: Stats) => boolean;
+  /** 异常时整卡红色底色 */
+  tint?: (s: Stats) => boolean;
   suffix?: string;
-  /** 卡片底部「查看…」链接的目标（仅 alarm 卡展示） */
-  linkTo?: string;
+  /** 副行：可选（账号卡无副行） */
+  sub?: (s: Stats) => string | null;
+  /** 副行告警色判定 */
+  subDanger?: (s: Stats) => boolean;
+  /** 整卡点击跳转（常规入口：查看全部） */
+  to?: (s: Stats) => string | null;
+  /** 副行跳转（只看异常项）；null = 副行为纯文本 */
+  subTo?: (s: Stats) => string | null;
 };
 
 const CARDS: StatCard[] = [
-  { key: "accounts", label: "账号", icon: <Users className="size-4" /> },
-  { key: "total_jobs", label: "任务总数", icon: <Timer className="size-4" /> },
-  { key: "enabled_jobs", label: "已启用", icon: <Play className="size-4" /> },
-  { key: "total_monitors", label: "监控", icon: <HeartPulse className="size-4" /> },
-  { key: "today_runs", label: "今日运行", icon: <Clock className="size-4" /> },
-  { key: "failed_24h", label: "触发失败", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/runs?status=failed" },
-  { key: "gh_failed_24h", label: "workflow 失败", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/runs?gh=failed" },
-  { key: "down_monitors", label: "监控故障", icon: <CircleAlert className="size-4" />, alarm: true, linkTo: "/monitors" },
-  { key: "success_rate_7d", label: "7 天成功率", icon: <CircleCheck className="size-4" />, suffix: "%" },
+  { key: "accounts", label: "账号", icon: <Users className="size-4" />, to: () => "/accounts" },
+  { key: "total_jobs", label: "任务", icon: <Timer className="size-4" />, to: () => "/jobs",
+    sub: s => `启用 ${s.enabled_jobs} / ${s.total_jobs}` },
+  { key: "total_monitors", label: "监控", icon: <HeartPulse className="size-4" />, to: () => "/monitors",
+    sub: s => (s.down_monitors > 0 ? `故障 ${s.down_monitors}` : "全部正常"),
+    subDanger: s => s.down_monitors > 0,
+    tint: s => s.down_monitors > 0,
+    subTo: s => (s.down_monitors > 0 ? "/monitors?status=down" : null) },
+  { key: "today_runs", label: "今日运行", icon: <Clock className="size-4" />, to: () => "/runs",
+    sub: s => {
+      const n = s.failed_24h + s.gh_failed_24h;
+      return n > 0 ? `失败 ${n}` : "无失败";
+    },
+    subDanger: s => s.failed_24h + s.gh_failed_24h > 0,
+    tint: s => s.failed_24h + s.gh_failed_24h > 0,
+    subTo: s => (s.failed_24h + s.gh_failed_24h > 0 ? "/runs?status=failed" : null) },
+  { key: "success_rate_7d", label: "7 天成功率", icon: <CircleCheck className="size-4" />, suffix: "%",
+    sub: s => (s.gh_done_7d > 0 ? `基于 ${s.gh_done_7d} 次执行` : "暂无执行") },
 ];
 
 /** 侧栏「即将运行」最多展示的条数 */
@@ -100,25 +117,45 @@ export default function Dashboard() {
         ) : stats === null
           ? CARDS.map(c => <SkeletonCard key={c.key} />)
           : CARDS.map(c => {
-              const v = stats[c.key];
-              const hot = !!c.alarm && v !== null && v > 0;
-              return (
-                <div key={c.key} className={cx(
-                  "rounded-xl border p-4 transition-colors duration-fast ease-smooth",
-                  hot ? "border-danger/40 bg-danger-soft" : "border-border bg-panel",
-                )}>
-                  <div className={cx("flex items-center gap-1.5 text-xs", hot ? "text-danger" : "text-fg-muted")}>
+              const v = c.value ? c.value(stats) : (stats[c.key as keyof Stats] as number | null);
+              const bad = c.danger?.(stats) ?? false;
+              const tinted = c.tint?.(stats) ?? false;
+              const sub = c.sub?.(stats) ?? null;
+              const subHot = c.subDanger?.(stats) ?? false;
+              const subTo = c.subTo?.(stats) ?? null;
+              const to = c.to?.(stats) ?? null;
+              // 拉伸链接：整卡可点（看全部）；副行是独立链接（只看异常项），
+              // relative 置顶不被盖住；hover 反馈经 has(:hover) 传导到卡片边框。
+              const inner = (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs text-fg-muted">
                     {c.icon}<span>{c.label}</span>
                   </div>
-                  <p className={cx("mt-2 text-2xl font-semibold tabular-nums", hot && "text-danger")}>
+                  <p className={cx("mt-2 text-2xl font-semibold tabular-nums", bad && "text-danger")}>
                     {v === null ? "—" : v}{c.suffix ?? ""}
                   </p>
-                  {hot && (
-                    <Link to={c.linkTo ?? "/runs"}
-                      className="mt-1 inline-flex items-center gap-0.5 text-xs text-danger underline-offset-2 hover:underline">
-                      查看失败记录<ArrowRight className="size-3" />
+                  {sub !== null && (subTo ? (
+                    <Link to={subTo}
+                      className={cx("relative z-10 mt-1 inline-flex items-center gap-1 text-xs hover:underline", subHot && "text-danger")}>
+                      {sub}<ArrowRight className="size-3" />
                     </Link>
+                  ) : (
+                    <p className={cx("mt-1 text-xs", subHot ? "text-danger" : "text-fg-subtle")}>{sub}</p>
+                  ))}
+                </>
+              );
+              return (
+                <div key={c.key} className={cx(
+                  "relative rounded-xl border p-4",
+                  tinted ? "border-danger/40 bg-danger-soft"
+                    : "border-border bg-panel",
+                  !tinted && to && "has-[a[data-card]:hover]:border-border-strong has-[a[data-card]:hover]:bg-panel-hover",
+                )}>
+                  {to && (
+                    <Link to={to} data-card aria-label={`${c.label}——查看全部`}
+                      className="absolute inset-0 rounded-xl focusRing" />
                   )}
+                  {inner}
                 </div>
               );
             })}

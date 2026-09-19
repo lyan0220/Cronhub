@@ -166,6 +166,8 @@ export type Stats = {
   failed_24h: number;
   /** 近 24h workflow 真实失败数（触发成功但 conclusion ≠ success） */
   gh_failed_24h: number;
+  /** 近 7 天已有结论的 workflow 执行数（成功率卡的样本量） */
+  gh_done_7d: number;
   /** 近 7 天 workflow 成功率（0-100 整数）；暂无已有结论的 run 为 null */
   success_rate_7d: number | null;
   /** 调度器最近一轮活动时间；从未运行过为 null */
