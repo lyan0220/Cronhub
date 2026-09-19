@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { LOCAL_TZ, timezoneOptions } from "../Jobs/schedule";
 import { CHANNEL_TYPE_LABEL, type Channel, type Job } from "../../types";
 import { Badge, Button, Checkbox, Drawer, Field, Input, Segmented, Select, Switch, Textarea } from "../../ui";
 
@@ -21,20 +22,33 @@ export type MonitorFormData = {
   /** 联动任务 id；0 = 不联动 */
   on_down_job_id: number;
   on_up_job_id: number;
+  /** 暂停时段（HH:MM），"" = 不暂停 */
+  pause_start: string;
+  pause_end: string;
+  /** 暂停时段生效时区（IANA 名称） */
+  timezone: string;
 };
 
 export const EMPTY_FORM: MonitorFormData = {
   name: "", url: "", method: "GET", expected_status: "200-299", keyword: "",
   headers_json: "", timeout_sec: 10, interval_min: 5, fail_threshold: 1,
   notify: 0, channelIds: null, on_down_job_id: 0, on_up_job_id: 0,
+  pause_start: "", pause_end: "", timezone: LOCAL_TZ,
 };
 
-type Key = "name" | "url" | "timeout_sec" | "interval_min" | "fail_threshold" | "headers_json" | "expected_status";
+type Key = "name" | "url" | "timeout_sec" | "interval_min" | "fail_threshold" | "headers_json" | "expected_status" | "pause";
 
 const ALL_TOUCHED: Record<Key, boolean> = {
   name: true, url: true, timeout_sec: true,
   interval_min: true, fail_threshold: true, headers_json: true, expected_status: true,
+  pause: true,
 };
+
+/** 暂停时段的可选时刻（30 分钟粒度） */
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, "0");
+  return `${h}:${i % 2 ? "30" : "00"}`;
+});
 
 /** 校验状态码输入：逗号分隔的单码或区间，与服务端规则一致 */
 function validateCodes(v: string): string | null {
@@ -95,6 +109,10 @@ function validate(f: MonitorFormData): Record<Key, string | null> {
     fail_threshold: intIn(f.fail_threshold, 1, 10),
     headers_json: validateHeadersJson(f.headers_json),
     expected_status: validateCodes(f.expected_status),
+    // Select 只产出合法 HH:MM 或空值，这里只校验配对与零长
+    pause: (f.pause_start || f.pause_end) && (!f.pause_start || !f.pause_end)
+      ? "开始与结束需同时设置"
+      : f.pause_start && f.pause_start === f.pause_end ? "起止时间相同" : null,
   };
 }
 
@@ -212,6 +230,30 @@ export default function MonitorForm({
               )}
             </Field>
           </div>
+          <Field label="暂停时段（可选）" hint="窗口内跳过探测，不产生心跳与告警；支持跨天（如 22:00 至 06:00）" error={err("pause")}>
+            {({ id }) => (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Select id={id} className="w-28" value={form.pause_start}
+                    onChange={e => set({ pause_start: e.target.value })}>
+                    <option value="">不暂停</option>
+                    {TIME_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                  <span className="text-xs text-fg-subtle">至</span>
+                  <Select className="w-28" aria-label="暂停结束时间" value={form.pause_end}
+                    onChange={e => set({ pause_end: e.target.value })}>
+                    <option value="">不暂停</option>
+                    {TIME_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                  <span className="ml-auto text-xs text-fg-subtle">时区</span>
+                  <Select className="w-48" aria-label="暂停时段时区" value={form.timezone}
+                    onChange={e => set({ timezone: e.target.value })}>
+                    {timezoneOptions().map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </Select>
+                </div>
+              </div>
+            )}
+          </Field>
           <Field label="自定义请求头（可选）" hint="JSON 对象，同名头覆盖默认浏览器头" error={err("headers_json")}>
             {({ id, describedBy }) => (
               <Textarea id={id} aria-describedby={describedBy} invalid={!!err("headers_json")}

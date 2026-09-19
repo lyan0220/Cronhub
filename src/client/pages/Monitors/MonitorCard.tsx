@@ -41,6 +41,9 @@ export default function MonitorCard({ monitor: m, beats, probing, onToggle, onPr
         <span className="inline-flex items-center gap-1.5 tabular-nums">
           <Timer className="size-3.5 shrink-0" aria-hidden />每 {Math.round(m.interval_seconds / 60)} 分钟
         </span>
+        {m.pause_start && m.pause_end && (
+          <span className="text-fg-subtle">暂停 {m.pause_start}–{m.pause_end}</span>
+        )}
         {m.uptime_24h !== null ? (
           <span className="tabular-nums">24h 在线 {m.uptime_24h}%</span>
         ) : (

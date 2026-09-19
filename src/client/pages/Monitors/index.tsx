@@ -12,6 +12,7 @@ import { useAutoRefresh } from "../../utils/useAutoRefresh";
 import MonitorCard from "./MonitorCard";
 import MonitorDetail from "./MonitorDetail";
 import MonitorForm, { EMPTY_FORM, type MonitorFormData } from "./MonitorForm";
+import { LOCAL_TZ } from "../Jobs/schedule";
 import MonitorRow from "./MonitorRow";
 import MonitorsCleanupDialog from "./MonitorsCleanupDialog";
 
@@ -106,6 +107,8 @@ export default function Monitors() {
       timeout_sec: Math.round(m.timeout_ms / 1000),
       interval_min: Math.round(m.interval_seconds / 60),
       fail_threshold: m.fail_threshold,
+      pause_start: m.pause_start ?? "", pause_end: m.pause_end ?? "",
+      timezone: m.timezone ?? LOCAL_TZ,
       notify: m.notify ?? 0, channelIds,
       on_down_job_id: m.on_down_job_id ?? 0, on_up_job_id: m.on_up_job_id ?? 0,
     });
@@ -123,6 +126,9 @@ export default function Monitors() {
       headers_json: rest.headers_json.trim(),
       timeout_ms: rest.timeout_sec * 1000,
       interval_seconds: rest.interval_min * 60,
+      pause_start: rest.pause_start || null,
+      pause_end: rest.pause_end || null,
+      timezone: rest.timezone || null,
       notify_channel_ids: channelIds,
       on_down_job_id: rest.on_down_job_id || null,
       on_up_job_id: rest.on_up_job_id || null,

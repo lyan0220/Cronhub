@@ -90,6 +90,12 @@ CREATE TABLE IF NOT EXISTS monitors (
   last_latency_ms INTEGER,
   next_run_at INTEGER NOT NULL,
   last_run_at INTEGER,
+  -- 暂停时段（本地时钟 HH:MM-HH:MM，可跨天；NULL = 不暂停）：窗口内跳过探测，
+  -- 不产生心跳/告警/联动，恢复后自动继续
+  pause_start TEXT,
+  pause_end TEXT,
+  -- 暂停时段生效时区（IANA 名称，NULL = UTC）
+  timezone TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );

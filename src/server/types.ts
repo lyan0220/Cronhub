@@ -72,6 +72,11 @@ export type MonitorRow = {
   /** down / up 状态转换时联动触发的任务；NULL = 不联动 */
   on_down_job_id: number | null;
   on_up_job_id: number | null;
+  /** 暂停时段（本地时钟 HH:MM），NULL = 不暂停；窗口内跳过探测 */
+  pause_start: string | null;
+  pause_end: string | null;
+  /** 暂停时段生效时区（IANA 名称，NULL = UTC） */
+  timezone: string | null;
   /** 运行状态（调度器维护）：pending=尚未探测 / up / down */
   status: "pending" | "up" | "down";
   /** 连续失败计数；成功清零；手动启停时重置 */

@@ -80,6 +80,53 @@ export function normalizeExpectedCodes(raw: unknown): string {
     .join(",");
 }
 
+// ---- 暂停时段（窗口内跳过探测：不请求、不记心跳、不告警不联动）----
+
+const minuteFmtCache = new Map<string, Intl.DateTimeFormat>();
+
+/** 指定时区下 now 的本地钟点（当日 0 点起的分钟数）；时区名非法返回 null */
+function localMinuteOfDay(now: number, tz?: string | null): number | null {
+  const key = tz || "UTC";
+  let fmt = minuteFmtCache.get(key);
+  if (!fmt) {
+    try {
+      fmt = new Intl.DateTimeFormat("en-US", { timeZone: key, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      minuteFmtCache.set(key, fmt);
+    } catch {
+      return null;
+    }
+  }
+  const [h, m] = fmt.format(new Date(now)).split(":").map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+}
+
+function hhmmToMinute(v: string | null | undefined): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((v ?? "").trim());
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  return h <= 23 && min <= 59 ? h * 60 + min : null;
+}
+
+/** 当前是否处于暂停窗口（跨天窗口如 22:00-06:00 已处理；起止相同视为零长不暂停） */
+export function inPauseWindow(m: Pick<MonitorRow, "pause_start" | "pause_end" | "timezone">, now: number): boolean {
+  const start = hhmmToMinute(m.pause_start);
+  const end = hhmmToMinute(m.pause_end);
+  if (start === null || end === null || start === end) return false;
+  const cur = localMinuteOfDay(now, m.timezone);
+  if (cur === null) return false;
+  return start < end ? cur >= start && cur < end : cur >= start || cur < end;
+}
+
+/** 窗口结束时刻的时间戳（now 之后的下一个 end），用于把下次探测排到窗口外 */
+function pauseEndsAt(m: Pick<MonitorRow, "pause_end" | "timezone">, now: number): number | null {
+  const end = hhmmToMinute(m.pause_end);
+  const cur = localMinuteOfDay(now, m.timezone);
+  if (end === null || cur === null) return null;
+  const ahead = (end - cur + 1440) % 1440;
+  // 唤醒时刻与整点存在分钟内偏差，至少前进 1 分钟保证落在窗口结束之后
+  return now + Math.max(ahead, 1) * 60_000;
+}
+
 export async function probeMonitor(monitor: MonitorRow, fetchFn: typeof fetch = fetch): Promise<ProbeResult> {
   const started = performance.now();
   const headers: Record<string, string> = { ...DEFAULT_HEADERS };
@@ -262,6 +309,15 @@ export async function runDueMonitors(
 
   async function processMonitor(monitor: MonitorRow): Promise<void> {
     try {
+      // 暂停窗口内：跳过本轮探测（不请求不记心跳），下次探测直接排到窗口结束之后
+      if (inPauseWindow(monitor, now)) {
+        const endsAt = pauseEndsAt(monitor, now);
+        if (endsAt !== null) {
+          await env.DB.prepare("UPDATE monitors SET next_run_at=?, updated_at=? WHERE id=?")
+            .bind(endsAt, now, monitor.id).run();
+        }
+        return;
+      }
       // 乐观锁认领：先推进 next_run_at 再探测，多 isolate 并发时只有一个实例执行
       const claim = await env.DB.prepare(
         "UPDATE monitors SET next_run_at=?, updated_at=? WHERE id=? AND next_run_at=? AND enabled=1",

@@ -100,6 +100,11 @@ export type Monitor = {
   fail_threshold: number;
   on_down_job_id: number | null;
   on_up_job_id: number | null;
+  /** 暂停时段（本地时钟 HH:MM），NULL = 不暂停；窗口内跳过探测 */
+  pause_start: string | null;
+  pause_end: string | null;
+  /** 暂停时段生效时区（IANA 名称，NULL = UTC） */
+  timezone: string | null;
   on_down_job_name: string | null;
   on_up_job_name: string | null;
   /** 调度器维护的运行状态 */

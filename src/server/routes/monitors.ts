@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { normalizeExpectedCodes, probeAndRecord } from "../monitor";
+import { isValidTimezone } from "../schedule";
 import { assertChannelsExist } from "./jobs";
 import { DEFAULT_HEARTBEAT_RETENTION_DAYS, KEY_HEARTBEATS_RETENTION, getSetting, setSetting } from "../settings";
 import type { Env, MonitorRow } from "../types";
@@ -24,6 +25,11 @@ type MonitorInput = {
   fail_threshold: number;
   on_down_job_id: number | null;
   on_up_job_id: number | null;
+  /** 暂停时段（本地时钟 HH:MM），NULL = 不暂停 */
+  pause_start: string | null;
+  pause_end: string | null;
+  /** 暂停时段生效时区（IANA 名称，NULL = UTC） */
+  timezone: string | null;
 };
 
 /** 校验并规范化状态码输入，缺省 200-299（任意 2xx） */
@@ -133,9 +139,23 @@ function validateMonitorBody(body: Record<string, unknown>): { ok: true; data: M
     return { ok: false, error: "联动任务选择无效" };
   }
 
+  // 暂停时段：两者同时设置（HH:MM，可跨天），窗口内跳过探测；起止相同无意义
+  const pause_start = typeof body.pause_start === "string" ? body.pause_start.trim() : "";
+  const pause_end = typeof body.pause_end === "string" ? body.pause_end.trim() : "";
+  if (!!pause_start !== !!pause_end) return { ok: false, error: "暂停时段的开始与结束需同时设置" };
+  if (pause_start && !/^([01]\d|2[0-3]):[0-5]\d$/.test(pause_start)) return { ok: false, error: "暂停开始时间格式应为 HH:MM" };
+  if (pause_end && !/^([01]\d|2[0-3]):[0-5]\d$/.test(pause_end)) return { ok: false, error: "暂停结束时间格式应为 HH:MM" };
+  if (pause_start && pause_start === pause_end) return { ok: false, error: "暂停时段起止相同" };
+
+  let timezone: string | null = null;
+  if (typeof body.timezone === "string" && body.timezone.trim()) {
+    timezone = body.timezone.trim();
+    if (!isValidTimezone(timezone)) return { ok: false, error: "时区名称无效（应为 IANA 时区，如 Asia/Shanghai）" };
+  }
+
   return {
     ok: true,
-    data: { name, url, method, expected_status: expected_status.value, keyword, headers_json, timeout_ms, interval_seconds, enabled, notify, notify_channel_ids, fail_threshold, on_down_job_id, on_up_job_id },
+    data: { name, url, method, expected_status: expected_status.value, keyword, headers_json, timeout_ms, interval_seconds, enabled, notify, notify_channel_ids, fail_threshold, on_down_job_id, on_up_job_id, pause_start: pause_start || null, pause_end: pause_end || null, timezone },
   };
 }
 
@@ -246,12 +266,14 @@ monitorRoutes.post("/", async (c) => {
   const now = Date.now();
   const r = await c.env.DB.prepare(
     `INSERT INTO monitors (name, url, method, expected_status, keyword, headers_json, timeout_ms, interval_seconds,
-       enabled, notify, notify_channel_ids, fail_threshold, on_down_job_id, on_up_job_id, status, fail_streak, next_run_at, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending', 0, ?, ?, ?)`,
+       enabled, notify, notify_channel_ids, fail_threshold, on_down_job_id, on_up_job_id,
+       pause_start, pause_end, timezone, status, fail_streak, next_run_at, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, 'pending', 0, ?, ?, ?)`,
   )
     .bind(v.data.name, v.data.url, v.data.method, v.data.expected_status, v.data.keyword, v.data.headers_json,
       v.data.timeout_ms, v.data.interval_seconds, v.data.enabled, v.data.notify, v.data.notify_channel_ids,
-      v.data.fail_threshold, v.data.on_down_job_id, v.data.on_up_job_id, now, now, now)
+      v.data.fail_threshold, v.data.on_down_job_id, v.data.on_up_job_id,
+      v.data.pause_start, v.data.pause_end, v.data.timezone, now, now, now)
     .run();
   const monitor = await c.env.DB.prepare("SELECT * FROM monitors WHERE id=?").bind(r.meta.last_row_id).first<MonitorRow>();
   return c.json({ ok: true, data: monitor }, 201);
@@ -277,11 +299,12 @@ monitorRoutes.put("/:id", async (c) => {
   await c.env.DB.prepare(
     `UPDATE monitors SET name=?, url=?, method=?, expected_status=?, keyword=?, headers_json=?, timeout_ms=?,
        interval_seconds=?, enabled=?, notify=?, notify_channel_ids=?, fail_threshold=?, on_down_job_id=?, on_up_job_id=?,
-       status=?, fail_streak=?, next_run_at=?, updated_at=? WHERE id=?`,
+       status=?, fail_streak=?, next_run_at=?, updated_at=?, pause_start=?, pause_end=?, timezone=? WHERE id=?`,
   )
     .bind(v.data.name, v.data.url, v.data.method, v.data.expected_status, v.data.keyword, v.data.headers_json,
       v.data.timeout_ms, v.data.interval_seconds, v.data.enabled, v.data.notify, v.data.notify_channel_ids,
-      v.data.fail_threshold, v.data.on_down_job_id, v.data.on_up_job_id, status, failStreak, now, now, id)
+      v.data.fail_threshold, v.data.on_down_job_id, v.data.on_up_job_id, status, failStreak, now, now,
+      v.data.pause_start, v.data.pause_end, v.data.timezone, id)
     .run();
   const updated = await c.env.DB.prepare("SELECT * FROM monitors WHERE id=?").bind(id).first<MonitorRow>();
   return c.json({ ok: true, data: updated });

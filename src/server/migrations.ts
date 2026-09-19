@@ -102,6 +102,17 @@ const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_heartbeats_time ON heartbeats(created_at)`,
     ],
   },
+  {
+    // 监控暂停时段：窗口内跳过探测（不产生心跳/告警/联动）。
+    // pause_start/pause_end 为本地时钟 HH:MM 字符串，可跨天；timezone 为其生效时区。
+    id: 4,
+    name: "monitor-pause-window",
+    statements: [
+      "ALTER TABLE monitors ADD COLUMN pause_start TEXT",
+      "ALTER TABLE monitors ADD COLUMN pause_end TEXT",
+      "ALTER TABLE monitors ADD COLUMN timezone TEXT",
+    ],
+  },
 ];
 
 let migrated = false;
