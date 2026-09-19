@@ -29,7 +29,7 @@ export default function MonitorCard({ monitor: m, beats, probing, onToggle, onPr
 
       <div className="flex items-center gap-2 text-xs text-fg-muted">
         <Globe className="size-3.5 shrink-0" aria-hidden />
-        <a href={m.url} target="_blank" rel="noreferrer" title={`${m.url}（新标签页打开）`}
+        <a href={m.url} target="_blank" rel="noreferrer" title={m.url}
           className="min-w-0 truncate font-mono transition-colors duration-fast ease-smooth hover:text-fg">
           {m.url}
         </a>

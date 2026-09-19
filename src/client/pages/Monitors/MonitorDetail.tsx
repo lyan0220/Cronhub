@@ -96,7 +96,7 @@ export default function MonitorDetail({ monitor, onClose }: Props) {
           <Badge tone={monitor.status === "up" ? "success" : monitor.status === "down" ? "danger" : "neutral"}>
             {monitor.status === "up" ? "正常" : monitor.status === "down" ? "故障" : "待探测"}
           </Badge>
-          <a href={monitor.url} target="_blank" rel="noreferrer" title={`${monitor.url}（新标签页打开）`}
+          <a href={monitor.url} target="_blank" rel="noreferrer" title={monitor.url}
             className="min-w-0 truncate font-mono transition-colors duration-fast ease-smooth hover:text-fg">
             {monitor.url}
           </a>
