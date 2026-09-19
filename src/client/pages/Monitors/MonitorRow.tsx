@@ -28,7 +28,10 @@ export default function MonitorRow({ monitor: m, beats, probing, onToggle, onPro
     )}>
       <td className="py-2.5 pl-4 pr-3">
         <div className="max-w-48 truncate font-medium text-fg">{m.name}</div>
-        <div className="mt-0.5 max-w-48 truncate font-mono text-xs text-fg-subtle" title={m.url}>{m.url}</div>
+        <a href={m.url} target="_blank" rel="noreferrer" title={`${m.url}（新标签页打开）`}
+          className="mt-0.5 max-w-48 truncate font-mono text-xs text-fg-subtle transition-colors duration-fast ease-smooth hover:text-fg">
+          {m.url}
+        </a>
       </td>
       <td className="p-3 text-center"><Badge tone={badge.tone}>{badge.label}</Badge></td>
       <td className="p-3"><HeartbeatBar beats={beats ?? []} slots={28} /></td>
