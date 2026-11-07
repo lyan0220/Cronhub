@@ -38,12 +38,14 @@ statusPageRoutes.put("/", async (c) => {
     if (monitor_ids.length > MAX_MONITORS) {
       return c.json({ ok: false, error: `最多公开 ${MAX_MONITORS} 个监控` }, 400);
     }
-    const rows = await c.env.DB.prepare("SELECT id FROM monitors").all<{ id: number }>();
-    const known = new Set((rows.results ?? []).map((r) => r.id));
-    const missing = monitor_ids.filter((id) => !known.has(id));
-    if (missing.length) {
-      return c.json({ ok: false, error: `监控不存在（id: ${missing.join(", ")}）` }, 400);
+    const rows = await c.env.DB.prepare("SELECT id FROM monitors WHERE enabled=1").all<{ id: number }>();
+    const eligible = new Set((rows.results ?? []).map((r) => r.id));
+    // 配置可能来自监控删除前的旧状态；保存时清除不存在或已停用的 ID，避免脏数据阻塞编辑。
+    const validIds = monitor_ids.filter((id) => eligible.has(id));
+    if (validIds.length === 0) {
+      return c.json({ ok: false, error: "至少选择一个启用中的监控" }, 400);
     }
+    monitor_ids.splice(0, monitor_ids.length, ...validIds);
   }
 
   const config: StatusPageConfig = { enabled, slug, title: title || DEFAULT_TITLE, monitor_ids };

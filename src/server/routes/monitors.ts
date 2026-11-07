@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { normalizeExpectedCodes, probeAndRecord } from "../monitor";
 import { isValidTimezone } from "../schedule";
 import { assertChannelsExist } from "./jobs";
-import { DEFAULT_HEARTBEAT_RETENTION_DAYS, KEY_HEARTBEATS_RETENTION, getSetting, setSetting } from "../settings";
+import { DEFAULT_HEARTBEAT_RETENTION_DAYS, KEY_HEARTBEATS_RETENTION, getSetting, getStatusPage, setSetting, setStatusPage } from "../settings";
 import type { Env, MonitorRow } from "../types";
 
 const monitorRoutes = new Hono<{ Bindings: Env }>();
@@ -385,6 +385,10 @@ monitorRoutes.delete("/:id/heartbeats", async (c) => {
 
 monitorRoutes.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
+  const statusPage = await getStatusPage(c.env);
+  if (statusPage?.monitor_ids.includes(id)) {
+    await setStatusPage(c.env, { ...statusPage, monitor_ids: statusPage.monitor_ids.filter((monitorId) => monitorId !== id) });
+  }
   // batch 是原子事务：避免「心跳删了、监控还在」的半删状态
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM heartbeats WHERE monitor_id=?").bind(id),
